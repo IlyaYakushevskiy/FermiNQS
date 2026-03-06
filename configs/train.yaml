@@ -1,0 +1,3 @@
+work_dir: ""
+seed: 234
+use_wandb: true

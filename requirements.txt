@@ -1,0 +1,12 @@
+netket ## for gpu on linus pip install 'netket[cuda]'
+jax ## or pip install -U "jax[cuda13]"
+flax
+numpy
+
+matplotlib
+
+wandb
+hydra-core
+
+ipykernel
+jupyterlab
