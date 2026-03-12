@@ -1,3 +1,22 @@
 work_dir: ""
 seed: 234
 use_wandb: true
+
+system:
+  N: 20
+  dim: 1
+  mass: 1.0
+
+ansatz:
+  std: 1.0
+
+sampler:
+  sigma: 0.1
+  n_chains: 16
+
+optimizer:
+  lr: 0.05
+
+experiments:
+  seed: 42
+  vmc_iters: 300
