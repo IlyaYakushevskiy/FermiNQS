@@ -31,7 +31,8 @@ class Trainer():
         #vstate.init_parameters(normal(stddev=1.0))
         optimizer = nk.optimizer.Sgd(learning_rate= self.lr )
 
-        gs_driver = nk.driver.VMC( self.hamiltonian, optimizer= optimizer, variational_state= vstate )
+        
+        gs_driver = nk.driver.VMC_SR( self.hamiltonian, optimizer= optimizer, variational_state= vstate, diag_shift=0.05 )
 
         self.log.info("running driver and logging...")
 
@@ -47,16 +48,6 @@ class Trainer():
         self.log.info(f"Optimized energy and relative error: {energy_mean} ± {mc_error}")
 
        
-        #train loop 
+       
 
-        #self.logger.info("============ Starting epoch %i ... ============" % epoch)
 
-    #def save_model(self, path):
-
-    #compare with analytic solution, implement later 
-    #def test(): 
-
-# class Sampler(): 
-#     def __init__(): 
-
-#         sampler = nk.sampler.MetropolisGaussian(self.system.hi, sigma=0.1, n_chains=16, sweep_size=32) ##to make variables 

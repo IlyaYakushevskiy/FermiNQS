@@ -22,7 +22,8 @@ def main(cfg : DictConfig):
     system = System(
         N= cfg.system.N, 
         dim= cfg.system.dim, 
-        mass = cfg.system.mass
+        mass = cfg.system.mass,
+        potential= cfg.system.potential
     )
 
     if cfg.ansatz.model ==  "gaussian":
@@ -33,6 +34,12 @@ def main(cfg : DictConfig):
             N = cfg.system.N
         )
 
+    if cfg.ansatz.model ==  "deep_sets": 
+        ansatz = DeepSetsNN(
+            dim= cfg.system.dim,
+            rngs= nnx.Rngs(42),
+            N = cfg.system.N
+        )
     
     sampler = nk.sampler.MetropolisGaussian(system.hi, 
                                             sigma=0.1,

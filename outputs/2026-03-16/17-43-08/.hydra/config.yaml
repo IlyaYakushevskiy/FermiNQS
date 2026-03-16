@@ -1,0 +1,11 @@
+use_wnb: true
+system:
+  'N': 5
+  dim: 2
+  mass: 1.0
+  potential: qho_no_inter
+ansatz:
+  model: deep_sets
+trainer:
+  lr: 0.02
+  vmc_iters: 1000

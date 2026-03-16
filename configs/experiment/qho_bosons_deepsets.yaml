@@ -1,12 +1,13 @@
 # @package _global_
 
 system:
-  N: 3
-  dim: 1
+  N: 5
+  dim: 2
   potential: qho_no_inter
 
 ansatz:
-  model: "gaussian"
+  model: deep_sets
 
 trainer:
-  vmc_iters: 300
+  vmc_iters: 100
+  lr: 0.02
