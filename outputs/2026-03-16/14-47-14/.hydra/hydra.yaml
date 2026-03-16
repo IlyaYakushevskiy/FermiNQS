@@ -111,14 +111,15 @@ hydra:
   overrides:
     hydra:
     - hydra.mode=RUN
-    task: []
+    task:
+    - +experiment=qho_bosons_gaussian
   job:
     name: main
     chdir: null
-    override_dirname: ''
+    override_dirname: +experiment=qho_bosons_gaussian
     id: ???
     num: ???
-    config_name: configs/train
+    config_name: train
     env_set: {}
     env_copy: []
     config:
@@ -134,14 +135,15 @@ hydra:
     - path: hydra.conf
       schema: pkg
       provider: hydra
-    - path: /Users/ilyayakushevskiy/Desktop/FermiNQS
+    - path: /Users/ilyayakushevskiy/Desktop/FermiNQS/configs
       schema: file
       provider: main
     - path: ''
       schema: structured
       provider: schema
-    output_dir: /Users/ilyayakushevskiy/Desktop/FermiNQS/outputs/2026-03-10/17-27-26
+    output_dir: /Users/ilyayakushevskiy/Desktop/FermiNQS/outputs/2026-03-16/14-47-14
     choices:
+      experiment: qho_bosons_gaussian
       hydra/env: default
       hydra/callbacks: null
       hydra/job_logging: default

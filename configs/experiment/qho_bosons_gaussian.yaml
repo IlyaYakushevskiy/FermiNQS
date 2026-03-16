@@ -1,15 +1,11 @@
-hydra:
-  job:
-    chdir: True
+# @package _global_
 
 system:
-  N: 1
+  N: 3
   dim: 1
-  mass: 1.0
 
 ansatz:
   model: "gaussian"
 
 trainer:
-  lr: 0.01
   vmc_iters: 300

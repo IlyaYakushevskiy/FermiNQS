@@ -1,0 +1,9 @@
+system:
+  'N': 10
+  dim: 3
+  mass: 1.0
+ansatz:
+  model: gaussian
+trainer:
+  lr: 0.01
+  vmc_iters: 1000

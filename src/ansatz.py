@@ -33,11 +33,12 @@ class Gaussian(nnx.Module):
     The (positive definite) :math:`\Sigma_{ij} = AA^T` matrix is stored as
     non-positive definite matrix A.
     """
-    def __init__(self, dim: int, rngs: nnx.Rngs , std: float = 1.0 ): 
+    def __init__(self, dim: int, rngs: nnx.Rngs , N:int,  std: float = 1.0,  ): 
 
+        self.N = N
         initializer = jax.nn.initializers.normal(std)
 
-        inital_A = initializer( rngs.params() , (dim,dim), jnp.float64)
+        inital_A = initializer( rngs.params() , (dim * N ,dim * N ), jnp.float64)
 
         self.A = nnx.Param(inital_A)
 
