@@ -1,11 +1,8 @@
 import json
-import numpy as np
+import os
 import matplotlib.pyplot as plt
 
-def main():
-    
-    log_path = "outputs/2026-03-16/15-12-01/optimization_results.log"
-    
+def plot_err(log_path, plot_name, save_dir):
     with open(log_path, "r") as f:
         data = json.load(f)
     
@@ -14,17 +11,25 @@ def main():
     errors = data["Energy"]["Sigma"]
     
     
+    if isinstance(energies, dict) and "real" in energies:
+        energies = energies["real"]
+        
+  
+    if isinstance(errors, dict) and "real" in errors:
+        errors = errors["real"]
+    
     plt.figure(figsize=(8, 5))
     plt.errorbar(iters, energies, yerr=errors, label="VMC Energy", capsize=2)
-    plt.axhline(1.5, color="red", linestyle="--", label="Exact Ground State")
+ 
     
     plt.xlabel("VMC Iteration")
     plt.ylabel(r"Energy $\langle H \rangle$")
-    plt.title("QHO Convergence")
+    plt.title(f"Convergence: {plot_name}")
     plt.legend()
     plt.grid(True)
     
-    plt.savefig("plots/qho_convergence.png", bbox_inches="tight")
-
-if __name__ == "__main__":
-    main()
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, f"{plot_name}.png")
+    
+    plt.savefig(save_path, bbox_inches="tight")
+    plt.close()

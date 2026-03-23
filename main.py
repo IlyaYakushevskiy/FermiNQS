@@ -1,5 +1,8 @@
 import hydra
 from omegaconf import DictConfig
+from hydra.core.hydra_config import HydraConfig
+from hydra.utils import get_original_cwd
+import os
 ##from hydra.utils import instantiate # actually, might have problems with JAX
 
 import jax
@@ -7,9 +10,11 @@ import netket as nk
 from flax import nnx 
 import logging
 
+
 from src.system import System
 from src.ansatz import Gaussian, DeepSetsNN, FermiSets
 from src.train import Trainer
+from plots.plot_errs import plot_err
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +55,6 @@ def main(cfg : DictConfig):
 
 
 
-    
     sampler = nk.sampler.MetropolisGaussian(system.hi, 
                                             sigma=0.1,
                                             n_chains=16,
@@ -67,6 +71,22 @@ def main(cfg : DictConfig):
     
     trainer()
 
+    #Plotting errors 
+    hydra_cfg = HydraConfig.get()
+    current_out_dir = hydra_cfg.runtime.output_dir
+    orig_cwd = get_original_cwd()
+
+    time_stamp = os.path.basename(current_out_dir) 
+    run_name = f"{cfg.system.potential}_{cfg.ansatz.model}_N{cfg.system.N}_{time_stamp}"
+
+    log_path = os.path.join(current_out_dir, "optimization_results.log")
+    plot_dir = os.path.join(orig_cwd, "plots")
+
+    if os.path.exists(log_path):
+        plot_err(log_path=log_path, plot_name=run_name, save_dir=plot_dir)
+        log.info(f"plot saved to: {os.path.join(plot_dir, run_name)}.png")
+    else:
+        log.error(f"could not find log file at {log_path}")
 
 if __name__ == "__main__" : 
     main()
