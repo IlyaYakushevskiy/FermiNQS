@@ -8,7 +8,7 @@ from flax import nnx
 import logging
 
 from src.system import System
-from src.ansatz import Gaussian, DeepSetsNN
+from src.ansatz import Gaussian, DeepSetsNN, FermiSets
 from src.train import Trainer
 
 log = logging.getLogger(__name__)
@@ -40,6 +40,16 @@ def main(cfg : DictConfig):
             rngs= nnx.Rngs(42),
             N = cfg.system.N
         )
+
+    if cfg.ansatz.model ==  "fermi_sets": 
+        ansatz = FermiSets(
+            dim= cfg.system.dim,
+            rngs= nnx.Rngs(42),
+            N = cfg.system.N
+        )
+
+
+
     
     sampler = nk.sampler.MetropolisGaussian(system.hi, 
                                             sigma=0.1,

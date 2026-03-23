@@ -1,0 +1,13 @@
+# @package _global_
+
+system:
+  N: 5
+  dim: 1
+  potential: qho_no_inter
+
+ansatz:
+  model: fermi_sets
+
+trainer:
+  vmc_iters: 100
+  lr: 0.02
