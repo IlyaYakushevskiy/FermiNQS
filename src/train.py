@@ -9,8 +9,8 @@ class Trainer():
     def __init__(
             self,
             sampler,
-            hamiltonian,  #: System,
-            model, #: Gaussian,
+            hamiltonian,  #: System
+            model, #: NQS ansatz
             lr : float,
             vmc_iters : int,
             log : logging.Logger
@@ -31,7 +31,6 @@ class Trainer():
         #vstate.init_parameters(normal(stddev=1.0))
         optimizer = nk.optimizer.Sgd(learning_rate= self.lr )
 
-        
         gs_driver = nk.driver.VMC_SR( self.hamiltonian, optimizer= optimizer, variational_state= vstate, diag_shift=0.05 )
 
         self.log.info("running driver and logging...")

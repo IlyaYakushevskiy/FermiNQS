@@ -4,6 +4,7 @@ from flax import nnx
 import jax.numpy as jnp
 import jax
 from jax.nn.initializers import normal
+import timeit
 
 class DeepSetsNN(nnx.Module): 
     """
@@ -96,9 +97,9 @@ class FermiSets(nnx.Module):
                 #return jnp.sign(jnp.prod(jnp.diff(x, axis=1), axis=-1)) # sign of product of differences
 
                 #TODO the very naive approach, to be vectorised 
-        
+             
                 batch_size = x_reshaped.shape[0]
-                y = jnp.ones((batch_size, 1))
+                y = jnp.zeros((batch_size, 1))
 
                 for i in range(self.N):
                     r_i = x_reshaped[:, i, :]
@@ -106,13 +107,20 @@ class FermiSets(nnx.Module):
                         
                         r_j = x_reshaped[:, j, :]
 
-                        y = y * ( r_i - r_j )
+                        #log this part instead ,then we're talking sums 
+                        diff = ( r_i - r_j) 
+                        log_diff = jnp.log(diff.astype(jnp.complex64))
+                        y = y + log_diff
 
                 y = y.squeeze()
 
+                
+                #casted_complex_y = jnp.log(y.astype(jnp.complex64)) ## casted to complex, bc log in Re{} is undef #is output complex? 
+                #jax.debug.print("y = {}", y) #powers of 42 pop up 
+                return y
 
-                return jnp.log(y.astype(jnp.complex64)) ## casted to complex, bc log in Re{} is undef
-
+            elif self.dim == 2: 
+                return 0
             else:
                 raise NotImplementedError
     
@@ -138,11 +146,40 @@ class FermiSets(nnx.Module):
         log_antisymmetric = self.nu_antisymmetric(x)
 
         logPsi = log_psi_boson + log_antisymmetric
-
+        #jax.debug.print("log_psi_boson = {} and log_antisymmetric = {}", log_psi_boson,log_antisymmetric)
         return logPsi
     
 
     
+class Gaussian(nnx.Module): 
+     
+    """
+    We know that GS of QHO is a Gaussian, parametrised with covariance matrix 
+    the sum of (x_i)^2 in exponent is just a dot product X^T * X, hence : 
+
+    The wavefunction is given by the formula: :math:`\Psi(x) = \exp(\sum_{ij} x_i \Sigma_{ij} x_j)`.
+    The (positive definite) :math:`\Sigma_{ij} = AA^T` matrix is stored as
+    non-positive definite matrix A.
+    """
+    def __init__(self, dim: int, rngs: nnx.Rngs , N:int,  std: float = 1.0,  ): 
+
+        self.N = N
+        initializer = jax.nn.initializers.normal(std)
+
+        inital_A = initializer( rngs.params() , (dim * N ,dim * N ), jnp.float64)
+
+        self.A = nnx.Param(inital_A)
+
+    def __call__(self, X : jax.Array): 
+
+        A_matrix = self.A.value
+        Sigma = jnp.dot(A_matrix.T , A_matrix)
+        #super weird op, but basically it's optimised (X.T @ Sigma @ X)
+        exponent = -0.5 * jnp.einsum("...i,ij,...j", X , Sigma, X)
+
+        return exponent #nk expects log , don't exponentiate 
+    
+
 class Gaussian(nnx.Module): 
      
     """

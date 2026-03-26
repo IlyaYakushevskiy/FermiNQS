@@ -2,7 +2,7 @@
 
 system:
   N: 5
-  dim: 2
+  dim: 1
   potential: qho_no_inter
 
 ansatz:

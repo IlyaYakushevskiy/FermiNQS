@@ -1,12 +1,13 @@
 # @package _global_
 
 system:
-  N: 5
+  N: 100
   dim: 1
   potential: qho_no_inter
 
 ansatz:
   model: fermi_sets
+  hidden_units : 8 # assumption: should be more than N 
 
 trainer:
   vmc_iters: 100

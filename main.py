@@ -50,7 +50,8 @@ def main(cfg : DictConfig):
         ansatz = FermiSets(
             dim= cfg.system.dim,
             rngs= nnx.Rngs(42),
-            N = cfg.system.N
+            N = cfg.system.N, 
+            hidden_units= cfg.ansatz.hidden_units
         )
 
 
