@@ -12,7 +12,7 @@ import logging
 
 
 from src.system import System
-from src.ansatz import Gaussian, DeepSetsNN, FermiSets
+from src.ansatz import Gaussian, DeepSetsNN, FermiSets, GaussianFermions
 from src.train import Trainer
 from plots.plot_errs import plot_err
 
@@ -54,6 +54,12 @@ def main(cfg : DictConfig):
             hidden_units= cfg.ansatz.hidden_units
         )
 
+    if cfg.ansatz.model ==  "gaussian_fermions": 
+        ansatz = GaussianFermions(
+            dim= cfg.system.dim,
+            rngs= nnx.Rngs(42),
+            N = cfg.system.N
+        )
 
 
     sampler = nk.sampler.MetropolisGaussian(system.hi, 

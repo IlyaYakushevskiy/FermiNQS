@@ -2,7 +2,7 @@
 
 system:
   N: 5
-  dim: 1
+  dim: 2
   potential: qho_no_inter
 
 ansatz:
@@ -10,5 +10,5 @@ ansatz:
   hidden_units : 16 
 
 trainer:
-  vmc_iters: 100
+  vmc_iters: 1000
   lr: 0.02

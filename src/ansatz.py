@@ -48,9 +48,11 @@ class DeepSetsNN(nnx.Module):
 
         # pooling, enforcing symmetrisation 
         y = jnp.sum(y, axis=1)
+
         y = self.rho_dense1(y)
         y = nnx.gelu(y)
-        y = self.rho_dense2(y)   
+        y = self.rho_dense2(y)  
+
         logNNoutput = y.squeeze() 
 
         #zeroing the tails of "gaussian" (for QHO like systems)
@@ -73,6 +75,7 @@ class FermiSets(nnx.Module):
         self.N = N 
         self.L = L
         self.hidden_units = hidden_units
+    
 
         #pbc ignored for now 
 
@@ -85,6 +88,11 @@ class FermiSets(nnx.Module):
 
         self.rho_dense1 = nnx.Linear(in_features=hidden_units, out_features=hidden_units, rngs=rngs)
         self.rho_dense2 = nnx.Linear(in_features=hidden_units, out_features=1, rngs=rngs)
+
+        ### Psi layer, combining symmetric and antisymmetric features
+        self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 3 , out_features=hidden_units+3, rngs=rngs) # +1 for Re{} and Im{} of the Log(nu)
+        self.Psi_dense2 = nnx.Linear(in_features=hidden_units+ 3 , out_features=1, rngs=rngs)
+
 
     def nu_antisymmetric(self, x): 
             x_reshaped = x.reshape(-1, self.N, self.dim)
@@ -112,63 +120,150 @@ class FermiSets(nnx.Module):
                         log_diff = jnp.log(diff.astype(jnp.complex64))
                         y = y + log_diff
 
-                y = y.squeeze()
+                y = y.squeeze() 
+                return y
 
+            elif self.dim == 2: 
+
+                batch_size = x_reshaped.shape[0]
                 
-                #casted_complex_y = jnp.log(y.astype(jnp.complex64)) ## casted to complex, bc log in Re{} is undef #is output complex? 
-                #jax.debug.print("y = {}", y) #powers of 42 pop up 
+                y = jnp.zeros((batch_size, ), dtype= jnp.complex64) # must be 1D ! 
+
+                for i in range(self.N): 
+
+                    r_i = x_reshaped[:, i , : ]
+
+                    z_i = r_i[ : , 0] + 1j * r_i[ : , 1] 
+
+                    for j in range(i): 
+                        r_j = x_reshaped[:, j, :]
+                        z_j = r_j[:, 0] + 1j * r_j[:, 1]
+
+                        diff = (z_i - z_j)
+
+                        y = y + jnp.log(diff)
+                return y 
+
+            else:
+                raise NotImplementedError
+    
+    def eval_psi0(self, x, nu):
+        #x is (batch, N_particles, dim)
+        x_reshaped = x.reshape(-1, self.N, self.dim) #-1 inferes the batch size automatically 
+
+
+        y = self.phi_dense1(x_reshaped)
+        y = nnx.gelu(y)
+        y = self.phi_dense2(y)
+        y = jnp.sum(y, axis=1)
+
+        y = self.rho_dense1(y)
+        y = nnx.gelu(y)
+
+        log_nu_real = jnp.real(nu)
+        log_nu_imag = jnp.imag(nu)
+        safe_real = jnp.clip(log_nu_real, a_min=-15.0, a_max=15.0)[:, None]
+        phase_cos = jnp.cos(log_nu_imag)[:, None]
+        phase_sin = jnp.sin(log_nu_imag)[:, None]
+
+        log_feat_concat = jnp.concatenate([y, safe_real, phase_cos, phase_sin], axis=-1)
+
+        logPsi = self.Psi_dense1(log_feat_concat)
+        logPsi = nnx.gelu(logPsi)
+        logPsi = self.Psi_dense2(logPsi) 
+
+        logPsi = logPsi.squeeze() 
+
+        return logPsi
+
+    def __call__(self, x : jax.Array):
+
+        nu = self.nu_antisymmetric(x)
+        log_psi0_plus = self.eval_psi0(x, nu)
+        log_psi0_minus = self.eval_psi0(x, nu + 1j * jnp.pi) # nu + 1j * jnp.pi is a swap ( nu -> -nu) in complex space 
+
+        stacked_logs = jnp.stack([log_psi0_plus, log_psi0_minus], axis=-1)
+        weights = jnp.array([0.5, -0.5])
+
+        log_psi_final = jax.nn.logsumexp(stacked_logs, axis=-1, b=weights)
+
+        #jax.debug.print("log_psi_boson = {} and log_antisymmetric = {}", log_psi_boson,log_antisymmetric)
+        return log_psi_final
+    
+
+    
+class Gaussian(nnx.Module): 
+     
+    """
+    We know that GS of QHO is a Gaussian, parametrised with covariance matrix 
+    the sum of (x_i)^2 in exponent is just a dot product X^T * X, hence : 
+
+    The wavefunction is given by the formula: :math:`\Psi(x) = \exp(\sum_{ij} x_i \Sigma_{ij} x_j)`.
+    The (positive definite) :math:`\Sigma_{ij} = AA^T` matrix is stored as
+    non-positive definite matrix A.
+    """
+    def __init__(self, dim: int, rngs: nnx.Rngs , N:int,  std: float = 1.0,  ): 
+
+        self.N = N
+        initializer = jax.nn.initializers.normal(std)
+
+        inital_A = initializer( rngs.params() , (dim * N ,dim * N ), jnp.float64)
+
+        self.A = nnx.Param(inital_A)
+
+    def __call__(self, X : jax.Array): 
+
+        A_matrix = self.A.value
+        Sigma = jnp.dot(A_matrix.T , A_matrix)
+        #super weird op, but basically it's optimised (X.T @ Sigma @ X)
+        exponent = -0.5 * jnp.einsum("...i,ij,...j", X , Sigma, X)
+
+        return exponent #nk expects log , don't exponentiate 
+    
+
+class GaussianFermions(nnx.Module): 
+     
+    """
+    We know that GS of QHO is a Gaussian, parametrised with covariance matrix 
+    the sum of (x_i)^2 in exponent is just a dot product X^T * X, hence : 
+
+    The wavefunction is given by the formula: :math:`\Psi(x) = \exp(\sum_{ij} x_i \Sigma_{ij} x_j)`.
+    The (positive definite) :math:`\Sigma_{ij} = AA^T` matrix is stored as
+    non-positive definite matrix A.
+    """
+    def __init__(self, dim: int, rngs: nnx.Rngs , N:int,  std: float = 1.0,  ): 
+
+        self.N = N
+        self.dim = dim
+        initializer = jax.nn.initializers.normal(std)
+
+        inital_A = initializer( rngs.params() , (dim * N ,dim * N ), jnp.float64)
+
+        self.A = nnx.Param(inital_A)
+    
+    def nu_antisymmetric(self, x): 
+            x_reshaped = x.reshape(-1, self.N, self.dim)
+            #x is (batch, N, dim)
+            if self.dim == 1:              
+                batch_size = x_reshaped.shape[0]
+                y = jnp.zeros((batch_size, 1))
+
+                for i in range(self.N):
+                    r_i = x_reshaped[:, i, :]
+                    for j in range(i): 
+                        r_j = x_reshaped[:, j, :]
+                        #log this part instead ,then we're talking sums 
+                        diff = ( r_i - r_j) 
+                        log_diff = jnp.log(diff.astype(jnp.complex64))
+                        y = y + log_diff
+
+                y = y.squeeze()
                 return y
 
             elif self.dim == 2: 
                 return 0
             else:
                 raise NotImplementedError
-    
-
-    def __call__(self, x : jax.Array):
-
-        #x is (batch, N_particles, dim)
-        x_reshaped = x.reshape(-1, self.N, self.dim) #-1 inferes the batch size automatically 
-
-        y = self.phi_dense1(x_reshaped)
-        y = nnx.gelu(y)
-        y = self.phi_dense2(y)
-
-        y = jnp.sum(y, axis=1) # pooling "layer", enforcing symmetrisation 
-
-        y = self.rho_dense1(y)
-        y = nnx.gelu(y)
-        y = self.rho_dense2(y)
-
-        logNNoutput = y.squeeze() 
-        #zeroing the tails of "gaussian" (for QHO like systems)
-        log_psi_boson = logNNoutput + (-0.5 * jnp.sum(x**2, axis=(-2,-1))) 
-        log_antisymmetric = self.nu_antisymmetric(x)
-
-        logPsi = log_psi_boson + log_antisymmetric
-        #jax.debug.print("log_psi_boson = {} and log_antisymmetric = {}", log_psi_boson,log_antisymmetric)
-        return logPsi
-    
-
-    
-class Gaussian(nnx.Module): 
-     
-    """
-    We know that GS of QHO is a Gaussian, parametrised with covariance matrix 
-    the sum of (x_i)^2 in exponent is just a dot product X^T * X, hence : 
-
-    The wavefunction is given by the formula: :math:`\Psi(x) = \exp(\sum_{ij} x_i \Sigma_{ij} x_j)`.
-    The (positive definite) :math:`\Sigma_{ij} = AA^T` matrix is stored as
-    non-positive definite matrix A.
-    """
-    def __init__(self, dim: int, rngs: nnx.Rngs , N:int,  std: float = 1.0,  ): 
-
-        self.N = N
-        initializer = jax.nn.initializers.normal(std)
-
-        inital_A = initializer( rngs.params() , (dim * N ,dim * N ), jnp.float64)
-
-        self.A = nnx.Param(inital_A)
 
     def __call__(self, X : jax.Array): 
 
@@ -177,33 +272,7 @@ class Gaussian(nnx.Module):
         #super weird op, but basically it's optimised (X.T @ Sigma @ X)
         exponent = -0.5 * jnp.einsum("...i,ij,...j", X , Sigma, X)
 
-        return exponent #nk expects log , don't exponentiate 
-    
-
-class Gaussian(nnx.Module): 
-     
-    """
-    We know that GS of QHO is a Gaussian, parametrised with covariance matrix 
-    the sum of (x_i)^2 in exponent is just a dot product X^T * X, hence : 
-
-    The wavefunction is given by the formula: :math:`\Psi(x) = \exp(\sum_{ij} x_i \Sigma_{ij} x_j)`.
-    The (positive definite) :math:`\Sigma_{ij} = AA^T` matrix is stored as
-    non-positive definite matrix A.
-    """
-    def __init__(self, dim: int, rngs: nnx.Rngs , N:int,  std: float = 1.0,  ): 
-
-        self.N = N
-        initializer = jax.nn.initializers.normal(std)
-
-        inital_A = initializer( rngs.params() , (dim * N ,dim * N ), jnp.float64)
-
-        self.A = nnx.Param(inital_A)
-
-    def __call__(self, X : jax.Array): 
-
-        A_matrix = self.A.value
-        Sigma = jnp.dot(A_matrix.T , A_matrix)
-        #super weird op, but basically it's optimised (X.T @ Sigma @ X)
-        exponent = -0.5 * jnp.einsum("...i,ij,...j", X , Sigma, X)
-
-        return exponent #nk expects log , don't exponentiate 
+        if self.dim ==  1:
+            X_reshaped = X.reshape(-1, self.N, 1)
+            log_nu = self.nu_antisymmetric(X_reshaped)
+        return exponent + log_nu #nk expects log , don't exponentiate 
