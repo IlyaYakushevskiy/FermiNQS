@@ -73,6 +73,7 @@ def main(cfg : DictConfig):
      model = ansatz,
      lr = cfg.trainer.lr,
      vmc_iters= cfg.trainer.vmc_iters,
+     n_samples= cfg.trainer.n_samples,
      log = log
     )
     
