@@ -5,54 +5,50 @@ import flax
 import netket as nk
 from flax import nnx
 
-# Adjust these imports based on your folder structure
 from src.system import System
-from src.ansatz import Gaussian
+from src.ansatz import FermiSets
 
 def main():
     # 1. Re-initialize the exact architecture (N=1, dim=2)
-    system = System(N=1, dim=2, mass=1.0)
-    ansatz = Gaussian(dim=2, rngs=nnx.Rngs(42), N=1)
+    system = System(N=5, dim=2, mass=1.0, potential= "qho_no_inter")
+    ansatz = FermiSets(dim=2, rngs=nnx.Rngs(42), N=5 , hidden_units= 16)
     
-    sampler = nk.sampler.MetropolisGaussian(system.hi, sigma=0.1)
-    vstate = nk.vqs.MCState(sampler, ansatz, n_samples=100)
+    sampler = nk.sampler.MetropolisGaussian(system.hi, 
+                                            sigma=0.1,
+                                            n_chains=16,
+                                            sweep_size=32) 
     
-    # 2. Load the trained parameters (update this path to your actual run)
-    mpack_path = "outputs/YOUR_RUN_FOLDER/optimization_results.mpack"
+    vstate = nk.vqs.MCState(sampler, ansatz, n_samples=10**4, n_discard_per_chain=100)
+    
+    # EVERY particle is sitting at (0,0) !!! 
+    fixed_config = jnp.zeros((5, 2)) # TODO read from actual cfg in future N , dim 
+
+
+
+    mpack_path = "outputs/2026-03-26/19-00-52/optimization_results.mpack"
     with open(mpack_path, "rb") as file:
         vstate.variables = flax.serialization.from_bytes(vstate.variables, file.read())
         
-    # 3. Create a 2D Cartesian grid (Calculus 3 style)
     x = np.linspace(-4, 4, 100)
     y = np.linspace(-4, 4, 100)
     X, Y = np.meshgrid(x, y)
     
-    # Flatten the grid into a list of coordinates
-    # NetKet expects shape: (batch_size, N, dim) -> (10000, 1, 2)
-    grid_points = np.stack([X.ravel(), Y.ravel()], axis=-1).reshape(-1, 1, 2)
+    grid_2d = np.stack([X.ravel(), Y.ravel()], axis=-1)#flattens 100x100 -> (10000, 2)
+    full_configs = jnp.tile(fixed_config, (grid_2d.shape[0], 1, 1)) # (10000, 5, 2) tensor of 10000 particle configurations
+    full_configs = full_configs.at[:, 0, :].set(grid_2d) # setting coordinates for particle 0
     
-    # 4. Evaluate the wave function
-    log_psi = vstate.log_value(grid_points)
-    
-    # Convert from log-space back to linear amplitude
+    log_psi = vstate.log_value(full_configs)
     psi = jnp.exp(log_psi)
     
-    # 5. Apply the x operator
-    # Extract just the x-coordinates from the grid. 
-    # grid_points[:, 0, 0] gives all batches, the 1st particle, the 1st dimension (x)
-    x_coords = grid_points[:, 0, 0]
-    
-    # Element-wise multiplication: x * Psi
+    x_coords = grid_2d[:, 0] 
     operated_psi = x_coords * psi
     
-    # 6. Prepare data for plotting
-    # We plot the real part of the amplitude, reshaped back to the 100x100 grid
+    #  the real part of the amplitude, reshaped back to the 100x100 grid
     Z = jnp.real(operated_psi).reshape(100, 100)
     
-    # 7. Generate the plot
     plt.figure(figsize=(8, 6))
     
-    # A diverging colormap (coolwarm) is perfect here to show positive and negative amplitudes
+    
     contour = plt.contourf(X, Y, Z, levels=50, cmap="coolwarm", center=0)
     plt.colorbar(contour, label=r"Amplitude of $\hat{x}\Psi(x,y)$")
     
@@ -61,7 +57,7 @@ def main():
     plt.ylabel("y")
     plt.grid(True, alpha=0.3)
     
-    plt.savefig("operator_action.pdf", bbox_inches="tight")
+    plt.savefig("plots/operator_action_19-00-52_2particles.png", bbox_inches="tight")
     plt.show()
 
 if __name__ == "__main__":
