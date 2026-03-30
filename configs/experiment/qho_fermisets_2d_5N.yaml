@@ -1,7 +1,7 @@
 # @package _global_
 
 system:
-  N: 5
+  N: 2
   dim: 2
   potential: qho_no_inter
 
@@ -10,5 +10,11 @@ ansatz:
   hidden_units : 16 
 
 trainer:
-  vmc_iters: 1000
-  lr: 0.02
+  vmc_iters: 100
+  lr: 0.008
+  n_samples: 10e4
+
+sampler: 
+  sigma: 0.1 
+  n_chains: 16
+  sweep_size: 32

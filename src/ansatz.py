@@ -95,17 +95,24 @@ class FermiSets(nnx.Module):
 
 
     def nu_antisymmetric(self, x): 
+            #print("starting est poly")
             x_reshaped = x.reshape(-1, self.N, self.dim)
+            #rows, cols = jnp.tril_indices(self.N, k=-1)
+            
             #x is (batch, N, dim)
-            if self.dim == 1: 
+            if self.dim == 1:                 
+                # r = x_reshaped[..., 0]
+                # #all pairwise differences with broadcasting 
+                # diff = r[:, :, None] - r[:, None, :] # Shape: (batch, N, N) 
 
-                #N = x.shape[-1]
-                #using broadcasting, x[..., :, None] has shape (batch, N, 1) and x[..., None, :] (batch, 1, N), so diff_matrix has shape (batch, N, N)
-                #diff_matrix = x[..., :, None] - x[..., None, :]
-                #return jnp.sign(jnp.prod(jnp.diff(x, axis=1), axis=-1)) # sign of product of differences
+                # valid_diffs = diff[:, rows, cols] #lower triangular
+            
+                # log_diffs = jnp.log(valid_diffs.astype(complex))
 
-                #TODO the very naive approach, to be vectorised 
-             
+                
+                # return jnp.sum(log_diffs, axis=1)
+
+                #non-vectorised code
                 batch_size = x_reshaped.shape[0]
                 y = jnp.zeros((batch_size, 1))
 
@@ -119,10 +126,9 @@ class FermiSets(nnx.Module):
                         diff = ( r_i - r_j) 
                         log_diff = jnp.log(diff.astype(jnp.complex64))
                         y = y + log_diff
-
-                y = y.squeeze() 
-                return y
-
+                #print("finished est poly ")
+                return y.reshape(-1)
+         
             elif self.dim == 2: 
 
                 batch_size = x_reshaped.shape[0]
@@ -147,7 +153,7 @@ class FermiSets(nnx.Module):
             else:
                 raise NotImplementedError
     
-    def eval_psi0(self, x, nu):
+    def eval_psi0(self, x, nu): #nu is passed not as functor but as value 
         #x is (batch, N_particles, dim)
         x_reshaped = x.reshape(-1, self.N, self.dim) #-1 inferes the batch size automatically 
 
@@ -155,7 +161,8 @@ class FermiSets(nnx.Module):
         y = self.phi_dense1(x_reshaped)
         y = nnx.gelu(y)
         y = self.phi_dense2(y)
-        y = jnp.sum(y, axis=1)
+
+        y = jnp.sum(y, axis=1) # s_j = Sigma_i->N ( phi_j (x_i))  Not to confuse , this is still j sums of N 
 
         y = self.rho_dense1(y)
         y = nnx.gelu(y)
@@ -179,12 +186,13 @@ class FermiSets(nnx.Module):
     def __call__(self, x : jax.Array):
 
         nu = self.nu_antisymmetric(x)
+
+  
         log_psi0_plus = self.eval_psi0(x, nu)
         log_psi0_minus = self.eval_psi0(x, nu + 1j * jnp.pi) # nu + 1j * jnp.pi is a swap ( nu -> -nu) in complex space 
 
         stacked_logs = jnp.stack([log_psi0_plus, log_psi0_minus], axis=-1)
         weights = jnp.array([0.5, -0.5])
-
         log_psi_final = jax.nn.logsumexp(stacked_logs, axis=-1, b=weights)
 
         #jax.debug.print("log_psi_boson = {} and log_antisymmetric = {}", log_psi_boson,log_antisymmetric)
