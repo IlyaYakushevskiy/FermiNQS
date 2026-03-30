@@ -46,7 +46,7 @@ def plot_err(log_path, plot_name, save_dir, exact_energy=None, max_iter=None, y_
     plt.close()
 
 if __name__ == "__main__": 
-    log_path = "outputs/2026-03-27/13-06-37/optimization_results.log"
+    log_path = "outputs/2026-03-30/22-20-57/optimization_results.log"
     plot_name = "LR(0.02)_replica_13-14-38_zoomed"
     save_dir = "plots"
     exact_GS = 11.0

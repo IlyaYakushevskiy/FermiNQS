@@ -63,9 +63,9 @@ def main(cfg : DictConfig):
 
 
     sampler = nk.sampler.MetropolisGaussian(system.hi, 
-                                            sigma=0.1,
-                                            n_chains=16,
-                                            sweep_size=32) ##to make variables 
+                                            sigma=cfg.sampler.sigma,
+                                            n_chains=cfg.sampler.n_chains,
+                                            sweep_size=cfg.sampler.sweep_size) ##to make variables 
 
     trainer = Trainer(
      sampler=sampler,

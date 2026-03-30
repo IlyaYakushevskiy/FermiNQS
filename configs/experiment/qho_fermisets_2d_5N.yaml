@@ -7,14 +7,14 @@ system:
 
 ansatz:
   model: fermi_sets
-  hidden_units : 16 
+  hidden_units : 16
 
 trainer:
-  vmc_iters: 100
-  lr: 0.02
-  n_samples: 10e4
+  vmc_iters: 200
+  lr: 0.004
+  n_samples: 1000000
 
 sampler: 
   sigma: 0.1 
-  n_chains: 16
-  sweep_size: 32
+  n_chains: 2048
+  sweep_size: 32 #was 32
