@@ -177,7 +177,7 @@ class FermiSets(nnx.Module):
 
         logPsi = self.Psi_dense1(log_feat_concat)
         logPsi = nnx.gelu(logPsi)
-        logPsi = self.Psi_dense2(logPsi) 
+        logPsi = self.Psi_dense2(logPsi) #TODO try complex 
 
         logPsi = logPsi.squeeze() 
 
