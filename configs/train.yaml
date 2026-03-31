@@ -10,7 +10,7 @@ system:
 
 ansatz:
   model: "gaussian"
-  pretrained_path: None
+  pretrained_path: null
 
 trainer:
   lr: 0.01
