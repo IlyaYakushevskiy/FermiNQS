@@ -8,14 +8,15 @@ system:
 ansatz:
   model: fermi_sets
   hidden_units : 16
-  pretrained_path: "/outputs/2026-03-31/17-47-07/optimization_results.mpack"
+  pretrained_path: "/Users/ilyayakushevskiy/Desktop/FermiNQS/outputs/2026-03-31/17-47-07/optimization_results.mpack"
+  
 
 trainer:
   vmc_iters: 200
-  lr: 0.004
-  n_samples: 100000
+  lr: 0.02
+  n_samples: 100352
 
 sampler: 
-  sigma: 0.2
-  n_chains: 1024
+  sigma: 0.8
+  n_chains: 8192
   sweep_size: 32 #was 32

@@ -119,6 +119,7 @@ def main(cfg : DictConfig):
      log = log,
      log_path = log_path,
      seed=cfg.get("seed", 42),
+     pretrained_path= cfg.ansatz.pretrained_path,
      exact_gs_energy=exact_energy
     )
     

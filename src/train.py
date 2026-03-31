@@ -5,6 +5,7 @@ import netket as nk
 import logging
 import wandb
 import os
+import flax 
 import json
 
 class Trainer(): 
@@ -19,12 +20,13 @@ class Trainer():
             log : logging.Logger, 
             n_samples : int,
             log_path, 
+            pretrained_path,
             exact_gs_energy: float = None,
             seed: int = 42
         ): 
         
         self.sampler = sampler 
-        self.lr = lr
+        self.lr = lr 
         self.vmc_iters = vmc_iters
         self.eigenE = None
         self.hamiltonian = hamiltonian
@@ -32,13 +34,20 @@ class Trainer():
         self.log = log 
         self.n_samples = n_samples
         self.log_path = log_path
+        self.pretrained_path = pretrained_path 
         self.exact_gs_energy = exact_gs_energy
+        self.seed = seed
+    
 
     def __call__(self): 
         
         #currently expects flax object 
         vstate = nk.vqs.MCState(self.sampler, self.model, n_samples= int(self.n_samples) ,seed=self.seed, n_discard_per_chain=100)
-        #vstate.init_parameters(normal(stddev=1.0))
+
+        if self.pretrained_path is not None: 
+            with open(self.pretrained_path, "rb") as file:
+                vstate.variables = flax.serialization.from_bytes(vstate.variables, file.read())
+                
         optimizer = nk.optimizer.Sgd(learning_rate= self.lr )
 
         gs_driver = nk.driver.VMC_SR( self.hamiltonian, optimizer= optimizer, variational_state= vstate, diag_shift=0.05 )
@@ -71,7 +80,6 @@ class LiveWandbLogger:
 
     def __call__(self, step, item, variational_state):
         if not os.path.exists(self.log_file):
-            self.log.info("No such log path exists")
             return 
 
         try:

@@ -5,6 +5,17 @@ import matplotlib.pyplot as plt
 def plot_err(log_path, plot_name, save_dir, exact_energy=None, max_iter=None, y_lim=None):
     with open(log_path, "r") as f:
         data = json.load(f)
+
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "serif",
+        "font.serif": ["Computer Modern Roman"],
+        "font.size": 12,
+        "axes.labelsize": 14,
+        "legend.fontsize": 12,
+        "xtick.labelsize": 12,
+        "ytick.labelsize": 12
+    })
     
     iters = data["Energy"]["iters"]
     energies = data["Energy"]["Mean"]
