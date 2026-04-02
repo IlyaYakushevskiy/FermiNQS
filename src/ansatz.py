@@ -82,17 +82,17 @@ class FermiSets(nnx.Module):
 
         ###PHI 
 
-        self.phi_dense1 = nnx.Linear(in_features= dim , out_features= hidden_units, rngs= rngs) #dim * 2 if PBC map x -> (sin(x), cos(x))
-        self.phi_dense2 = nnx.Linear(in_features= hidden_units, out_features= hidden_units, rngs=rngs  )
+        self.phi_dense1 = nnx.Linear(in_features= dim , out_features= hidden_units, dtype=jnp.complex128, param_dtype=jnp.complex128, rngs=rngs) #dim * 2 if PBC map x -> (sin(x), cos(x))
+        self.phi_dense2 = nnx.Linear(in_features= hidden_units, out_features= hidden_units, dtype=jnp.complex128, param_dtype=jnp.complex128, rngs=rngs  )
         
         ### RHO
 
-        self.rho_dense1 = nnx.Linear(in_features=hidden_units, out_features=hidden_units, rngs=rngs)
-        self.rho_dense2 = nnx.Linear(in_features=hidden_units, out_features=1, rngs=rngs)
+        self.rho_dense1 = nnx.Linear(in_features=hidden_units, out_features=hidden_units, dtype=jnp.complex128, param_dtype=jnp.complex128, rngs=rngs)
+        self.rho_dense2 = nnx.Linear(in_features=hidden_units, out_features=1, dtype=jnp.complex128, param_dtype=jnp.complex128, rngs=rngs)
 
         ### Psi layer, combining symmetric and antisymmetric features
-        self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 3 , out_features=hidden_units+3, rngs=rngs) # +1 for Re{} and Im{} of the Log(nu)
-        self.Psi_dense2 = nnx.Linear(in_features=hidden_units+ 3 , out_features=1, rngs=rngs)
+        self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 3 , out_features=hidden_units+3, dtype=jnp.complex128, param_dtype=jnp.complex128, rngs=rngs) # +3 for Re{} and Im{} of the Log(nu)
+        self.Psi_dense2 = nnx.Linear(in_features=hidden_units+ 3 , out_features=1, dtype=jnp.complex128, param_dtype=jnp.complex128, rngs=rngs)
 
 
     def nu_antisymmetric(self, x): 
@@ -125,7 +125,7 @@ class FermiSets(nnx.Module):
 
                         #log this part instead ,then we're talking sums 
                         diff = ( r_i - r_j) 
-                        log_diff = jnp.log(diff.astype(jnp.complex64))
+                        log_diff = jnp.log(diff.astype(jnp.complex128))
                         y = y + log_diff
                 #print("finished est poly ")
                 return y.reshape(-1)
@@ -134,7 +134,7 @@ class FermiSets(nnx.Module):
 
                 batch_size = x_reshaped.shape[0]
                 
-                y = jnp.zeros((batch_size, ), dtype= jnp.complex64) # must be 1D ! 
+                y = jnp.zeros((batch_size, ), dtype= jnp.complex128) # must be 1D ! 
 
                 for i in range(self.N): 
 
@@ -160,13 +160,13 @@ class FermiSets(nnx.Module):
 
 
         y = self.phi_dense1(x_reshaped)
-        y = nnx.gelu(y)
+        y = nnx.tanh(y)
         y = self.phi_dense2(y)
 
         y = jnp.sum(y, axis=1) # s_j = Sigma_i->N ( phi_j (x_i))  Not to confuse , this is still j sums of N 
 
         y = self.rho_dense1(y)
-        y = nnx.gelu(y)
+        y = nnx.tanh(y)
 
         log_nu_real = jnp.real(nu)
         log_nu_imag = jnp.imag(nu)
@@ -177,7 +177,7 @@ class FermiSets(nnx.Module):
         log_feat_concat = jnp.concatenate([y, safe_real, phase_cos, phase_sin], axis=-1)
 
         logPsi = self.Psi_dense1(log_feat_concat)
-        logPsi = nnx.gelu(logPsi)
+        logPsi = jnp.tanh(logPsi)
         logPsi = self.Psi_dense2(logPsi) #TODO try complex 
 
         logPsi = logPsi.squeeze() 
@@ -202,7 +202,7 @@ class FermiSets(nnx.Module):
 
         stacked_logs = jnp.stack([log_psi0_plus, log_psi0_minus], axis=-1)
         weights = jnp.array([0.5, -0.5])
-        log_psi_final = jax.nn.logsumexp(stacked_logs, axis=-1, b=weights)
+        log_psi_final = jax.nn.logsumexp(stacked_logs, axis=-1, b=weights) ##TODO this fct only accepts real, change it to complex 
 
         #jax.debug.print("log_psi_boson = {} and log_antisymmetric = {}", log_psi_boson,log_antisymmetric)
         return log_psi_final
@@ -271,7 +271,7 @@ class GaussianFermions(nnx.Module):
                         r_j = x_reshaped[:, j, :]
                         #log this part instead ,then we're talking sums 
                         diff = ( r_i - r_j) 
-                        log_diff = jnp.log(diff.astype(jnp.complex64))
+                        log_diff = jnp.log(diff.astype(jnp.complex128))
                         y = y + log_diff
 
                 y = y.squeeze()

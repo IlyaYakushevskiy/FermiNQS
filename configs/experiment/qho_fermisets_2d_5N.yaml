@@ -14,10 +14,10 @@ ansatz:
 
 trainer:
   vmc_iters: 200
-  lr: 0.008
-  n_samples: 100000
+  lr: 0.001
+  n_samples: 50000
 
 sampler: 
   sigma: 0.1
-  n_chains: 2048
+  n_chains: 512
   sweep_size: 32 #was 32

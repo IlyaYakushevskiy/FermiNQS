@@ -50,6 +50,8 @@ class Trainer():
                 
         optimizer = nk.optimizer.Sgd(learning_rate= self.lr )
 
+        vstate.chunk_size = 4096 ##TODO added chunking, to add in the cinfig 
+        
         gs_driver = nk.driver.VMC_SR( self.hamiltonian, optimizer= optimizer, variational_state= vstate, diag_shift=0.05 )
 
         self.log.info("running driver and logging...")
