@@ -94,6 +94,34 @@ class FermiSets(nnx.Module):
         self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 3 , out_features=hidden_units+3, rngs=rngs) # +1 for Re{} and Im{} of the Log(nu)
         self.Psi_dense2 = nnx.Linear(in_features=hidden_units+ 3 , out_features=1, rngs=rngs)
 
+    def nu_antisymmetric2(self, x): 
+            x_reshaped = x.reshape(-1, self.N, self.dim)
+
+            if self.dim == 2: 
+
+                batch_size = x_reshaped.shape[0]
+                
+                y = jnp.ones((batch_size, ), dtype= jnp.complex128)
+
+                for i in range(self.N): 
+
+                    r_i = x_reshaped[:, i , : ]
+
+                    z_i = r_i[ : , 0] + 1j * r_i[ : , 1] 
+
+                    for j in range(i): 
+                        r_j = x_reshaped[:, j, :]
+                        z_j = r_j[:, 0] + 1j * r_j[:, 1]
+
+                        diff = (z_i - z_j)
+
+                        y = y * (diff  / jnp.sqrt( jnp.abs(diff)**2 + 1.0 ))
+                return y 
+
+            else:
+                raise NotImplementedError
+            
+
 
     def nu_antisymmetric(self, x): 
             #print("starting est poly")
@@ -168,13 +196,14 @@ class FermiSets(nnx.Module):
         y = self.rho_dense1(y)
         y = nnx.gelu(y)
 
-        log_nu_real = jnp.real(nu)
-        log_nu_imag = jnp.imag(nu)
-        safe_real = jnp.clip(log_nu_real, a_min=-15.0, a_max=15.0)[:, None]
-        phase_cos = jnp.cos(log_nu_imag)[:, None]
-        phase_sin = jnp.sin(log_nu_imag)[:, None]
+        nu_real = jnp.real(nu)[:, None]
+        nu_imag = jnp.imag(nu)[:, None]
+        nu_abs = jnp.abs(nu)[:, None]
+        safe_real = jnp.clip(nu_real, a_min=-15.0, a_max=15.0)
+        phase_cos = jnp.cos(nu_imag)[:, None]
+        phase_sin = jnp.sin(nu_imag)[:, None]
 
-        log_feat_concat = jnp.concatenate([y, safe_real, phase_cos, phase_sin], axis=-1)
+        log_feat_concat = jnp.concatenate([y, nu_abs, nu_real, nu_imag], axis=-1)
 
         logPsi = self.Psi_dense1(log_feat_concat)
         logPsi = nnx.gelu(logPsi)
@@ -185,8 +214,8 @@ class FermiSets(nnx.Module):
         return logPsi
 
     def __call__(self, x : jax.Array):
-
-        nu = self.nu_antisymmetric(x)
+ 
+        nu = self.nu_antisymmetric2(x)
 
         # feeding dummy tensor to check antisymmetry
         # idx = jnp.arange(x.shape[-2]) 
@@ -198,7 +227,7 @@ class FermiSets(nnx.Module):
         # self.log.info("nu(x) - Pnu(x) = " , jnp.abs(nu + nu_minus)) ##TODO make printing with call back function, jax does not allow log.info
   
         log_psi0_plus = self.eval_psi0(x, nu)
-        log_psi0_minus = self.eval_psi0(x, nu + 1j * jnp.pi) # nu + 1j * jnp.pi is a swap ( nu -> -nu) in complex space 
+        log_psi0_minus = self.eval_psi0(x, -nu ) # nu + 1j * jnp.pi is a swap ( nu -> -nu) in complex space 
 
         stacked_logs = jnp.stack([log_psi0_plus, log_psi0_minus], axis=-1)
         weights = jnp.array([0.5, -0.5])
