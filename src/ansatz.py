@@ -160,13 +160,13 @@ class FermiSets(nnx.Module):
 
 
         y = self.phi_dense1(x_reshaped)
-        y = nnx.tanh(y)
+        y = jnp.tanh(y)
         y = self.phi_dense2(y)
 
         y = jnp.sum(y, axis=1) # s_j = Sigma_i->N ( phi_j (x_i))  Not to confuse , this is still j sums of N 
 
         y = self.rho_dense1(y)
-        y = nnx.tanh(y)
+        y =jnp.tanh(y)
 
         log_nu_real = jnp.real(nu)
         log_nu_imag = jnp.imag(nu)
@@ -183,6 +183,29 @@ class FermiSets(nnx.Module):
         logPsi = logPsi.squeeze() 
 
         return logPsi
+    
+    def complex_logsumexp(self, a, axis=-1, b=None):
+        """
+        Complex-safe implementation of logsumexp using the real-part max trick.
+        """
+
+        a_real = jnp.real(a)
+        a_max = jnp.max(a_real, axis=axis, keepdims=True)
+    
+        a_max = jax.lax.stop_gradient(a_max)
+
+        shifted_a = a - a_max  # this scales down the magnitude without touching the phase
+        
+        exp_a = jnp.exp(shifted_a)
+
+        if b is not None:
+            exp_a = b * exp_a
+            
+        sum_exp = jnp.sum(exp_a, axis=axis, keepdims=True)
+
+        out = jnp.log(sum_exp) + a_max
+
+        return jnp.squeeze(out, axis=axis)
 
     def __call__(self, x : jax.Array):
 
@@ -201,8 +224,8 @@ class FermiSets(nnx.Module):
         log_psi0_minus = self.eval_psi0(x, nu + 1j * jnp.pi) # nu + 1j * jnp.pi is a swap ( nu -> -nu) in complex space 
 
         stacked_logs = jnp.stack([log_psi0_plus, log_psi0_minus], axis=-1)
-        weights = jnp.array([0.5, -0.5])
-        log_psi_final = jax.nn.logsumexp(stacked_logs, axis=-1, b=weights) ##TODO this fct only accepts real, change it to complex 
+        weights = jnp.array([0.5, -0.5], dtype=stacked_logs.dtype)
+        log_psi_final = self.complex_logsumexp(stacked_logs, axis=-1, b=weights)  
 
         #jax.debug.print("log_psi_boson = {} and log_antisymmetric = {}", log_psi_boson,log_antisymmetric)
         return log_psi_final
