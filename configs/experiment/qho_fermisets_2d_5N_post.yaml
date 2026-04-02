@@ -9,15 +9,15 @@ ansatz:
   model: fermi_sets
   hidden_units : 16
   #hydra uses null for "None"
-  pretrained_path: null 
+  pretrained_path: "/home/ilya/FermiNQS/outputs/2026-03-31/21-48-00/optimization_results.mpack" 
 
 
 trainer:
   vmc_iters: 1000
-  lr: 0.0005 #lower
+  lr: 0.001 #lower
   n_samples: 100000
 
 sampler: 
   sigma: 0.1
-  n_chains: 1024
+  n_chains: 16
   sweep_size: 32 #try increasing 

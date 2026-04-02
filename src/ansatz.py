@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import jax
 from jax.nn.initializers import normal
 import timeit
+import logging 
 
 class DeepSetsNN(nnx.Module): 
     """
@@ -68,14 +69,14 @@ class FermiSets(nnx.Module):
      (Fermions = Bosons + One).” doi:10.48550/arXiv.2510.11431.
     """
      
-    def __init__(self , dim: int , N: int, rngs: nnx.Rngs, pool_fct_name : str = None, L: float = None , hidden_units: int = 8 ):
+    def __init__(self , dim: int , N: int, rngs: nnx.Rngs, log : logging.Logger,  pool_fct_name : str = None, L: float = None , hidden_units: int = 8 ):
 
         self.pool_fct_name = pool_fct_name
         self.dim = dim 
         self.N = N 
         self.L = L
         self.hidden_units = hidden_units
-    
+        self.log = log
 
         #pbc ignored for now 
 
@@ -187,6 +188,14 @@ class FermiSets(nnx.Module):
 
         nu = self.nu_antisymmetric(x)
 
+        # feeding dummy tensor to check antisymmetry
+        # idx = jnp.arange(x.shape[-2]) 
+        # idx = idx.at[0].set(1).at[1].set(0) # Swapping particle 0 and particle 1
+        # x_swapped = x[..., idx, :]
+
+        # nu_minus = self.nu_antisymmetric(x_swapped)
+
+        # self.log.info("nu(x) - Pnu(x) = " , jnp.abs(nu + nu_minus)) ##TODO make printing with call back function, jax does not allow log.info
   
         log_psi0_plus = self.eval_psi0(x, nu)
         log_psi0_minus = self.eval_psi0(x, nu + 1j * jnp.pi) # nu + 1j * jnp.pi is a swap ( nu -> -nu) in complex space 

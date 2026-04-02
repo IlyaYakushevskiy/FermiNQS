@@ -93,7 +93,8 @@ def main(cfg : DictConfig):
             dim= cfg.system.dim,
             rngs= nnx.Rngs(42),
             N = cfg.system.N, 
-            hidden_units= cfg.ansatz.hidden_units
+            hidden_units= cfg.ansatz.hidden_units,
+            log= log
         )
 
     if cfg.ansatz.model ==  "gaussian_fermions": 
