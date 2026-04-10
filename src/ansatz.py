@@ -68,9 +68,8 @@ class FermiSets(nnx.Module):
      (Fermions = Bosons + One).” doi:10.48550/arXiv.2510.11431.
     """
      
-    def __init__(self , dim: int , N: int, rngs: nnx.Rngs, pool_fct_name : str = None, L: float = None , hidden_units: int = 8 ):
+    def __init__(self , dim: int , N: int, rngs: nnx.Rngs, L: float = None , hidden_units: int = 8 ):
 
-        self.pool_fct_name = pool_fct_name
         self.dim = dim 
         self.N = N 
         self.L = L
