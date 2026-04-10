@@ -81,16 +81,16 @@ class FermiSets(nnx.Module):
         ###PHI 
 
         self.phi_dense1 = nnx.Linear(in_features= dim , out_features= hidden_units, rngs= rngs) #dim * 2 if PBC map x -> (sin(x), cos(x))
-        self.phi_dense2 = nnx.Linear(in_features= hidden_units, out_features= hidden_units, rngs=rngs  )
+        #self.phi_dense2 = nnx.Linear(in_features= hidden_units, out_features= hidden_units, rngs=rngs  )
         
         ### RHO
 
         self.rho_dense1 = nnx.Linear(in_features=hidden_units, out_features=hidden_units, rngs=rngs)
-        self.rho_dense2 = nnx.Linear(in_features=hidden_units, out_features=1, rngs=rngs)
+        #self.rho_dense2 = nnx.Linear(in_features=hidden_units, out_features=1, rngs=rngs)
 
         ### Psi layer, combining symmetric and antisymmetric features
-        self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 3 , out_features=hidden_units+3, rngs=rngs) # +1 for Re{} and Im{} of the Log(nu)
-        self.Psi_dense2 = nnx.Linear(in_features=hidden_units+ 3 , out_features=1, rngs=rngs)
+        self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 2 , out_features=hidden_units+2, rngs=rngs) # +1 for Re{} and Im{} of the Log(nu)
+        self.Psi_dense2 = nnx.Linear(in_features=hidden_units+ 2 , out_features=2, rngs=rngs)
 
 
     def nu_antisymmetric(self, x): 
@@ -132,23 +132,30 @@ class FermiSets(nnx.Module):
 
                 batch_size = x_reshaped.shape[0]
                 
-                y = jnp.zeros((batch_size, ), dtype= jnp.complex64) # must be 1D ! 
+                # y = jnp.zeros((batch_size, ), dtype= jnp.complex64) # must be 1D ! 
 
-                for i in range(self.N): 
+                # for i in range(self.N): 
 
-                    r_i = x_reshaped[:, i , : ]
+                #     r_i = x_reshaped[:, i , : ]
 
-                    z_i = r_i[ : , 0] + 1j * r_i[ : , 1] 
+                #     z_i = r_i[ : , 0] + 1j * r_i[ : , 1] 
 
-                    for j in range(i): 
-                        r_j = x_reshaped[:, j, :]
-                        z_j = r_j[:, 0] + 1j * r_j[:, 1]
+                #     for j in range(i): 
+                #         r_j = x_reshaped[:, j, :]
+                #         z_j = r_j[:, 0] + 1j * r_j[:, 1]
 
-                        diff = (z_i - z_j)
+                #         diff = (z_i - z_j)
 
-                        y = y + jnp.log(diff)
-                return y 
+                #         y = y + jnp.log(diff)
+                a = 0.1
+                z = x_reshaped[:, :, 0] + 1j * x_reshaped[:, :, 1]
+                idx_i, idx_j = jnp.tril_indices(z.shape[1], k=-1)
+                r_test = (z[:, idx_i] - z[:, idx_j]) / jnp.sqrt((jnp.square(jnp.abs(z[:, idx_i] - z[:, idx_j])) + a**2))
+                r_test = jnp.prod(r_test, axis=1)
+                #jax.debug.print(r_test)
+                return r_test
 
+        
             else:
                 raise NotImplementedError
     
@@ -159,40 +166,36 @@ class FermiSets(nnx.Module):
 
         y = self.phi_dense1(x_reshaped)
         y = nnx.gelu(y)
-        y = self.phi_dense2(y)
+        #y = self.phi_dense2(y)
 
         y = jnp.sum(y, axis=1) # s_j = Sigma_i->N ( phi_j (x_i))  Not to confuse , this is still j sums of N 
 
         y = self.rho_dense1(y)
         y = nnx.gelu(y)
 
-        log_nu_real = jnp.real(nu)
-        log_nu_imag = jnp.imag(nu)
-        safe_real = jnp.clip(log_nu_real, a_min=-15.0, a_max=15.0)[:, None]
-        phase_cos = jnp.cos(log_nu_imag)[:, None]
-        phase_sin = jnp.sin(log_nu_imag)[:, None]
+        # log_nu_real = jnp.real(nu)
+        # log_nu_imag = jnp.imag(nu)
 
-        feat_concat = jnp.concatenate([y, safe_real, phase_cos, phase_sin], axis=-1) 
+        # safe_real = jnp.clip(log_nu_real, a_min=-15.0, a_max=15.0)[:, None]
+        # phase_cos = jnp.cos(log_nu_imag)[:, None]
+        # phase_sin = jnp.sin(log_nu_imag)[:, None]
+
+        feat_concat = jnp.concatenate( [y, jnp.real(nu)[:, None], jnp.imag(nu)[:, None]] , axis=1) 
 
         Psi = self.Psi_dense1(feat_concat)
         Psi = nnx.gelu(Psi)
 
-        out = self.Psi_dense2(Psi) #TODO try complex 
-        out = out.squeeze()
-        # real_psi = out[:, 0]
-        # complex_psi = out[:, 1]
+        out = self.Psi_dense2(Psi) #TODO is complex 
+    
+        real_psi = out[:, 0]
+        imag_psi = out[:, 1]
 
-        # complex_psi = real_psi + 1j * complex_psi
+        complex_psi = real_psi + 1j * imag_psi
         
         #jax.debug.print("log_psi_final = {} ", jnp.abs(complex_psi))
-        return out
+        return complex_psi
 
-    def diff_vectorized(x, a=0.1):
-        z = x[:, :, 0] + 1j * x[:, :, 1]
-        idx_i, idx_j = jnp.tril_indices(z.shape[1], k=-1)
-        r_test = (z[:, idx_i] - z[:, idx_j]) / jnp.sqrt((jnp.square(jnp.abs(z[:, idx_i] - z[:, idx_j])) + a**2))
-        r_test = jnp.prod(r_test, axis=1)
-        return r_test
+        
 
     def __call__(self, x : jax.Array):
 
@@ -200,14 +203,14 @@ class FermiSets(nnx.Module):
 
   
         psi0_plus = self.eval_psi0(x, log_nu) #complex number 
-        psi0_minus = self.eval_psi0(x, log_nu + 1j * jnp.pi) # nu + 1j * jnp.pi is a swap ( nu -> -nu) in complex space 
+        psi0_minus = self.eval_psi0(x, -log_nu) # nu + 1j * jnp.pi is a swap ( nu -> -nu) in complex space 
 
         # weights = jnp.array([0.5, -0.5], dtype=jnp.complex64)
         # stacked_logits = jnp.stack([log_psi0_plus, log_psi0_minus], axis=-1)  
 
         # log_psi_final = jax.scipy.special.logsumexp(stacked_logits, b=weights, axis=-1)
 
-        log_psi_final =  jnp.log(0.5 * (psi0_plus - psi0_minus))
+        log_psi_final =  0.5 * (psi0_plus - psi0_minus)
 
         #jax.debug.print("log_psi_final = {} ", log_psi_final)
         return log_psi_final
