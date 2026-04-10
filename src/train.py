@@ -47,7 +47,10 @@ class Trainer():
         if self.pretrained_path is not None: 
             with open(self.pretrained_path, "rb") as file:
                 vstate.variables = flax.serialization.from_bytes(vstate.variables, file.read())
-                
+        
+        self.log.info("pre-running sampler ...")
+        vstate.sample(chain_length=1000) # run sampler before optimising 
+
         optimizer = nk.optimizer.Sgd(learning_rate= self.lr)
 
         gs_driver = nk.driver.VMC_SR( self.hamiltonian, optimizer= optimizer, variational_state= vstate, diag_shift=0.05 )

@@ -21,6 +21,7 @@ class System():
         #self.states = self.hi.random_state(jax.random.key(0), 1) # continious hilbert 
 
         self.Ekin = nk.operator.KineticEnergy(self.hi, mass = 1.0) #this part stays const
+        print("Kinetic energy (stays constant), if blow up then gradient are the problem :  ", self.Ekin )
 
         if self.potential == "qho_no_inter":
             def v(x): 

@@ -172,29 +172,44 @@ class FermiSets(nnx.Module):
         phase_cos = jnp.cos(log_nu_imag)[:, None]
         phase_sin = jnp.sin(log_nu_imag)[:, None]
 
-        log_feat_concat = jnp.concatenate([y, safe_real, phase_cos, phase_sin], axis=-1)
+        feat_concat = jnp.concatenate([y, safe_real, phase_cos, phase_sin], axis=-1) 
 
-        logPsi = self.Psi_dense1(log_feat_concat)
-        logPsi = nnx.gelu(logPsi)
-        logPsi = self.Psi_dense2(logPsi) #TODO try complex 
+        Psi = self.Psi_dense1(feat_concat)
+        Psi = nnx.gelu(Psi)
 
-        logPsi = logPsi.squeeze() 
+        out = self.Psi_dense2(Psi) #TODO try complex 
+        out = out.squeeze()
+        # real_psi = out[:, 0]
+        # complex_psi = out[:, 1]
 
-        return logPsi
+        # complex_psi = real_psi + 1j * complex_psi
+        
+        #jax.debug.print("log_psi_final = {} ", jnp.abs(complex_psi))
+        return out
+
+    def diff_vectorized(x, a=0.1):
+        z = x[:, :, 0] + 1j * x[:, :, 1]
+        idx_i, idx_j = jnp.tril_indices(z.shape[1], k=-1)
+        r_test = (z[:, idx_i] - z[:, idx_j]) / jnp.sqrt((jnp.square(jnp.abs(z[:, idx_i] - z[:, idx_j])) + a**2))
+        r_test = jnp.prod(r_test, axis=1)
+        return r_test
 
     def __call__(self, x : jax.Array):
 
-        nu = self.nu_antisymmetric(x)
+        log_nu = self.nu_antisymmetric(x)
 
   
-        log_psi0_plus = self.eval_psi0(x, nu)
-        log_psi0_minus = self.eval_psi0(x, nu + 1j * jnp.pi) # nu + 1j * jnp.pi is a swap ( nu -> -nu) in complex space 
+        psi0_plus = self.eval_psi0(x, log_nu) #complex number 
+        psi0_minus = self.eval_psi0(x, log_nu + 1j * jnp.pi) # nu + 1j * jnp.pi is a swap ( nu -> -nu) in complex space 
 
-        stacked_logs = jnp.stack([log_psi0_plus, log_psi0_minus], axis=-1)
-        weights = jnp.array([0.5, -0.5])
-        log_psi_final = jax.nn.logsumexp(stacked_logs, axis=-1, b=weights)
+        # weights = jnp.array([0.5, -0.5], dtype=jnp.complex64)
+        # stacked_logits = jnp.stack([log_psi0_plus, log_psi0_minus], axis=-1)  
 
-        #jax.debug.print("log_psi_boson = {} and log_antisymmetric = {}", log_psi_boson,log_antisymmetric)
+        # log_psi_final = jax.scipy.special.logsumexp(stacked_logits, b=weights, axis=-1)
+
+        log_psi_final =  jnp.log(0.5 * (psi0_plus - psi0_minus))
+
+        #jax.debug.print("log_psi_final = {} ", log_psi_final)
         return log_psi_final
     
 

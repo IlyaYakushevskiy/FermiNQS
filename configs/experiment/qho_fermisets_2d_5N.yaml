@@ -19,5 +19,5 @@ trainer:
 
 sampler: 
   sigma: 0.1
-  n_chains: 1024
+  n_chains: 128
   sweep_size: 32 #was 32
