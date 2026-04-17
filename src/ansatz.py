@@ -90,8 +90,8 @@ class FermiSets(nnx.Module):
         self.rho_dense2 = nnx.Linear(in_features=hidden_units, out_features=1, rngs=rngs)
 
         ### Psi layer, combining symmetric and antisymmetric features
-        self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 2 , out_features=hidden_units+2, rngs=rngs) # +1 for Re{} and Im{} of the Log(nu)
-        self.Psi_dense2 = nnx.Linear(in_features=hidden_units+ 2 , out_features=2, rngs=rngs)
+        self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 2 , out_features=(hidden_units+2)*4, rngs=rngs) # +1 for Re{} and Im{} of the Log(nu)
+        self.Psi_dense2 = nnx.Linear(in_features=(hidden_units+ 2)*4 , out_features=2, rngs=rngs)
 
 
     def nu_antisymmetric(self, x): 
