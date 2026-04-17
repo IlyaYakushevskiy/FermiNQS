@@ -91,7 +91,7 @@ class FermiSets(nnx.Module):
 
         ### Psi layer, combining symmetric and antisymmetric features
         self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 3 , out_features=hidden_units+3, rngs=rngs) # +1 for Re{} and Im{} of the Log(nu)
-        self.Psi_dense2 = nnx.Linear(in_features=hidden_units+ 3 , out_features=1, rngs=rngs)
+        self.Psi_dense2 = nnx.Linear(in_features=hidden_units+ 3 , out_features=2, rngs=rngs)
 
 
     def nu_antisymmetric(self, x): 
@@ -180,11 +180,16 @@ class FermiSets(nnx.Module):
 
         logPsi = self.Psi_dense1(log_feat_concat)
         logPsi = nnx.gelu(logPsi)
-        logPsi = self.Psi_dense2(logPsi) 
+        logPsi = self.Psi_dense2(logPsi) #now is an array
 
-        logPsi = logPsi.squeeze() 
+        logPsireal = logPsi[:, 0]
+        logPsiphase = logPsi[:, 1]
 
-        return logPsi
+        logPsi_comp = logPsireal + 1j * logPsiphase #log psi = log(R) + log(phase)
+
+        logPsi_comp = logPsi_comp.squeeze() 
+
+        return logPsi_comp
 
     def __call__(self, x : jax.Array):
 

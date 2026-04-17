@@ -14,7 +14,7 @@ def main():
     
     # 1. Initialize System and Ansatz
     system = System(N=N, dim=dim, mass=1.0, potential="qho_no_inter")
-    ansatz = FermiSets(dim=dim, rngs=nnx.Rngs(42), N=N, hidden_units=16)
+    ansatz = FermiSets(dim=dim, rngs=nnx.Rngs(42), N=N, hidden_units=32)
     
     sampler = nk.sampler.MetropolisGaussian(system.hi, 
                                             sigma=0.1,
@@ -24,7 +24,7 @@ def main():
     vstate = nk.vqs.MCState(sampler, ansatz, n_samples=100000, n_discard_per_chain=100)
 
     # 2. Load trained parameters
-    mpack_path = "outputs/2026-04-17/18-16-54/optimization_results.mpack"
+    mpack_path = "outputs/2026-04-17/19-01-38/optimization_results.mpack"
     with open(mpack_path, "rb") as file:
         vstate.variables = flax.serialization.from_bytes(vstate.variables, file.read())
 
@@ -92,5 +92,5 @@ def main():
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("plots/antisymmetry_5particles_complex_E15_attila_fct.png", bbox_inches="tight")
+    plt.savefig("plots/the_long_one_32h.png", bbox_inches="tight")
     plt.show()
