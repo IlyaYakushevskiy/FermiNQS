@@ -27,11 +27,11 @@ class Trainer():
     def __call__(self): 
         
         #currently expects flax object 
-        vstate = nk.vqs.MCState(self.sampler, self.model, n_samples=10**4, n_discard_per_chain=100)
+        vstate = nk.vqs.MCState(self.sampler, self.model, n_samples=10**4, n_discard_per_chain=100 )
         #vstate.init_parameters(normal(stddev=1.0))
         optimizer = nk.optimizer.Sgd(learning_rate= self.lr )
 
-        gs_driver = nk.driver.VMC_SR( self.hamiltonian, optimizer= optimizer, variational_state= vstate, diag_shift=0.05 )
+        gs_driver = nk.driver.VMC_SR( self.hamiltonian, optimizer= optimizer, variational_state= vstate, diag_shift=0.1 )
 
         self.log.info("running driver and logging...")
 

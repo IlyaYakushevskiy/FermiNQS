@@ -7,8 +7,8 @@ system:
 
 ansatz:
   model: fermi_sets
-  hidden_units : 16 
+  hidden_units : 16
 
 trainer:
   vmc_iters: 1000
-  lr: 0.02
+  lr: 0.008

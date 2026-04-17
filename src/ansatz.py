@@ -127,21 +127,31 @@ class FermiSets(nnx.Module):
 
                 batch_size = x_reshaped.shape[0]
                 
-                y = jnp.zeros((batch_size, ), dtype= jnp.complex64) # must be 1D ! 
+                # y = jnp.zeros((batch_size, ), dtype= jnp.complex64) # must be 1D ! 
 
-                for i in range(self.N): 
+                # for i in range(self.N): 
 
-                    r_i = x_reshaped[:, i , : ]
+                #     r_i = x_reshaped[:, i , : ]
 
-                    z_i = r_i[ : , 0] + 1j * r_i[ : , 1] 
+                #     z_i = r_i[ : , 0] + 1j * r_i[ : , 1] 
 
-                    for j in range(i): 
-                        r_j = x_reshaped[:, j, :]
-                        z_j = r_j[:, 0] + 1j * r_j[:, 1]
+                #     for j in range(i): 
+                #         r_j = x_reshaped[:, j, :]
+                #         z_j = r_j[:, 0] + 1j * r_j[:, 1]
 
-                        diff = (z_i - z_j)
+                #         diff = (z_i - z_j)
 
-                        y = y + jnp.log(diff)
+                #         epsilon = 1e-7 + 1e-7j
+
+                #         y = y + jnp.log(diff + epsilon)
+
+                #trying Attila's regularisation fct
+                a = 0.1
+                z = x_reshaped[:, :, 0] + 1j * x_reshaped[:, :, 1]
+                idx_i, idx_j = jnp.tril_indices(z.shape[1], k=-1)
+                r_test = (z[:, idx_i] - z[:, idx_j]) / jnp.sqrt(( jnp.square(jnp.abs(z[:, idx_i] - z[:, idx_j])) + 1.0**2))
+                y = jnp.prod(r_test, axis=1)
+
                 return y 
 
             else:
@@ -162,7 +172,7 @@ class FermiSets(nnx.Module):
 
         log_nu_real = jnp.real(nu)
         log_nu_imag = jnp.imag(nu)
-        safe_real = jnp.clip(log_nu_real, a_min=-15.0, a_max=15.0)[:, None]
+        safe_real = jnp.clip(log_nu_real, min=-15.0, max=15.0)[:, None]
         phase_cos = jnp.cos(log_nu_imag)[:, None]
         phase_sin = jnp.sin(log_nu_imag)[:, None]
 
@@ -179,11 +189,11 @@ class FermiSets(nnx.Module):
     def __call__(self, x : jax.Array):
 
         nu = self.nu_antisymmetric(x)
-        log_psi0_plus = self.eval_psi0(x, nu)
-        log_psi0_minus = self.eval_psi0(x, nu + 1j * jnp.pi) # nu + 1j * jnp.pi is a swap ( nu -> -nu) in complex space 
+        log_psi0_plus = self.eval_psi0(x, nu) 
+        log_psi0_minus = self.eval_psi0(x, -nu ) # nu + 1j * jnp.pi is a swap ( nu -> -nu) in complex space 
 
-        stacked_logs = jnp.stack([log_psi0_plus, log_psi0_minus], axis=-1)
-        weights = jnp.array([0.5, -0.5])
+        stacked_logs = jnp.stack([log_psi0_plus, log_psi0_minus], axis=-1).astype(jnp.complex128)
+        weights = jnp.array([0.5, -0.5], dtype=jnp.complex128) # negative weight creates complex fct 
 
         log_psi_final = jax.nn.logsumexp(stacked_logs, axis=-1, b=weights)
 

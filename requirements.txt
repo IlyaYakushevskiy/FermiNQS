@@ -1,5 +1,6 @@
 netket ## for gpu on linus pip install 'netket[cuda]'
-jax ## or pip install -U "jax[cuda13]"
+jax<0.10 ## NetKet 3.21.0 still uses JAX APIs removed in 0.10.0
+jaxlib<0.10
 flax
 numpy
 
