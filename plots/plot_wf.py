@@ -45,7 +45,6 @@ def main( N , dim):
     log_psi = vstate.log_value(X)
     log_psi = jnp.nan_to_num(log_psi, nan=0.0, posinf=100.0, neginf=-100.0) #
     
-    
 
     log_mag = jnp.real(log_psi)
     phase = jnp.imag(log_psi)
@@ -53,7 +52,7 @@ def main( N , dim):
     log_mag_shifted = log_mag - jnp.max(log_mag)
     
     print(phase)
-    Z = (jnp.exp(log_mag_shifted) * jnp.cos(phase)).reshape(100, 100) #real of Psi
+    Z = (jnp.exp(log_mag_shifted) * jnp.sin(phase)).reshape(100, 100) #real of Psi
     
     # 6. Plotting
     plt.figure(figsize=(8, 6))
@@ -68,7 +67,7 @@ def main( N , dim):
     plt.legend()
     plt.grid(True, alpha=0.3)
     
-    plt.savefig("plots/antisymmetry_5particles_2d.png", bbox_inches="tight")
+    plt.savefig("plots/antisymmetry_5particles_2d_phase.png", bbox_inches="tight")
 
 
 if __name__ == "__main__":

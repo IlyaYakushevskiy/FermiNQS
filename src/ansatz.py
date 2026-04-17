@@ -150,7 +150,7 @@ class FermiSets(nnx.Module):
                 a = 0.1
                 z = x_reshaped[:, :, 0] + 1j * x_reshaped[:, :, 1]
                 idx_i, idx_j = jnp.tril_indices(z.shape[1], k=-1)
-                r_test = (z[:, idx_i] - z[:, idx_j]) / jnp.sqrt((jnp.square(jnp.abs(z[:, idx_i] - z[:, idx_j])) + a**2))
+                r_test = (z[:, idx_i] - z[:, idx_j]) / jnp.sqrt(( jnp.square(jnp.abs(z[:, idx_i] - z[:, idx_j])) + 1.0**2))
                 r_test = jnp.prod(r_test, axis=1)
                 #jax.debug.print(r_test)
                 return r_test
