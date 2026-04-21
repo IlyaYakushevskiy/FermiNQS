@@ -87,7 +87,7 @@ class FermiSets(nnx.Module):
         ### RHO
 
         self.rho_dense1 = nnx.Linear(in_features=hidden_units, out_features=hidden_units, rngs=rngs)
-        self.rho_dense2 = nnx.Linear(in_features=hidden_units, out_features=1, rngs=rngs)
+        #self.rho_dense2 = nnx.Linear(in_features=hidden_units, out_features=1, rngs=rngs)
 
         ### Psi layer, combining symmetric and antisymmetric features
         self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 2 , out_features=(hidden_units+2)*4, rngs=rngs) # +1 for Re{} and Im{} of the Log(nu)
@@ -146,10 +146,19 @@ class FermiSets(nnx.Module):
                 #         y = y + jnp.log(diff + epsilon)
 
                 #trying Attila's regularisation fct
-                a = 0.1
                 z = x_reshaped[:, :, 0] + 1j * x_reshaped[:, :, 1]
                 idx_i, idx_j = jnp.tril_indices(z.shape[1], k=-1)
-                r_test = (z[:, idx_i] - z[:, idx_j]) / jnp.sqrt(( jnp.square(jnp.abs(z[:, idx_i] - z[:, idx_j])) + 1.0**2))
+                diff = z[:, idx_i] - z[:, idx_j]
+
+                
+                epsilon = 1e-7 + 1e-7j
+                diff_safe = diff + epsilon
+
+                # |z|^2 = Re(z)^2 + Im(z)^2
+                diff_sq = jnp.square(jnp.real(diff_safe)) + jnp.square(jnp.imag(diff_safe))
+
+                a = 1.0 
+                r_test = diff_safe / jnp.sqrt(diff_sq + a**2)
                 y = jnp.prod(r_test, axis=1)
 
                 # a = 0.1
@@ -211,11 +220,12 @@ class FermiSets(nnx.Module):
         stacked_logs = jnp.stack([log_psi0_plus, log_psi0_minus], axis=-1).astype(jnp.complex128)
         weights = jnp.array([0.5, -0.5], dtype=jnp.complex128) # negative weight creates complex fct 
 
-        log_psi_final = jax.nn.logsumexp(stacked_logs, axis=-1, b=weights)
+        log_psi_nn = jax.nn.logsumexp(stacked_logs, axis=-1, b=weights)
 
-        #jax.debug.print("log_psi_boson = {} and log_antisymmetric = {}", log_psi_boson,log_antisymmetric)
-        return log_psi_final
-    
+        log_gaussian_factor = -0.5 * jnp.sum(jnp.square(x), axis=-1)
+
+        return log_psi_nn + log_gaussian_factor
+        
 
     
 class Gaussian(nnx.Module): 

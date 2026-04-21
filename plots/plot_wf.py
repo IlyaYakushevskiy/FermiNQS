@@ -18,13 +18,14 @@ def main():
     
     sampler = nk.sampler.MetropolisGaussian(system.hi, 
                                             sigma=0.1,
-                                            n_chains=16,
-                                            sweep_size=32) 
+                                            n_chains=1024,
+                                            sweep_size=128) 
     
-    vstate = nk.vqs.MCState(sampler, ansatz, n_samples=100000, n_discard_per_chain=100)
+    vstate = nk.vqs.MCState(sampler, ansatz, n_samples=10**4, n_discard_per_chain=100)
 
     # 2. Load trained parameters
-    mpack_path = "outputs/2026-04-17/19-01-38/optimization_results.mpack"
+    
+    mpack_path = "outputs/2026-04-20/22-53-56/optimization_results.mpack"
     with open(mpack_path, "rb") as file:
         vstate.variables = flax.serialization.from_bytes(vstate.variables, file.read())
 
@@ -92,5 +93,10 @@ def main():
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
+
     plt.savefig("plots/the_long_one_32h.png", bbox_inches="tight")
+    print("ploted and saved")
     plt.show()
+
+if __name__ == "__main__":
+    main()

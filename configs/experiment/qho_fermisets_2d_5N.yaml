@@ -10,5 +10,5 @@ ansatz:
   hidden_units : 32
 
 trainer:
-  vmc_iters: 1000
-  lr: 0.02
+  vmc_iters: 500
+  lr: 0.004

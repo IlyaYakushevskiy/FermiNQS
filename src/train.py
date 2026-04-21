@@ -3,6 +3,7 @@ import jax
 import jax.numpy as jnp
 import netket as nk
 import logging
+import flax
 
 class Trainer(): 
 
@@ -27,11 +28,22 @@ class Trainer():
     def __call__(self): 
         
         #currently expects flax object 
-        vstate = nk.vqs.MCState(self.sampler, self.model, n_samples=10**4, n_discard_per_chain=100 )
-        #vstate.init_parameters(normal(stddev=1.0))
-        optimizer = nk.optimizer.Sgd(learning_rate= self.lr )
 
-        gs_driver = nk.driver.VMC_SR( self.hamiltonian, optimizer= optimizer, variational_state= vstate, diag_shift=0.1 )
+        #mpack_path = "/home/ilya/FermiNQS/outputs/2026-04-20/22-18-24/optimization_results.mpack" #to make var
+        mpack_path = "/home/ilya/FermiNQS/outputs/2026-04-20/22-53-56/optimization_results.mpack"
+
+        vstate = nk.vqs.MCState(self.sampler, self.model, n_samples=10**4, n_discard_per_chain=1000, seed=42 )
+
+        # if(mpack_path is not None):
+        #     with open(mpack_path, "rb") as file:
+        #         print("loading from the chekpoint in path")
+        #         vstate.variables = flax.serialization.from_bytes(vstate.variables, file.read())
+
+        #vstate.init_parameters(normal(stddev=1.0))
+        #optimizer = nk.optimizer.Sgd(learning_rate= self.lr )
+        optimizer = nk.optimizer.Momentum(learning_rate=0.005, beta= 0.8)
+
+        gs_driver = nk.driver.VMC_SR( self.hamiltonian, optimizer= optimizer, variational_state= vstate, diag_shift=0.2 )
 
         self.log.info("running driver and logging...")
 
