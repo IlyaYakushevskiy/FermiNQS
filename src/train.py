@@ -48,7 +48,7 @@ class Trainer():
             with open(self.pretrained_path, "rb") as file:
                 vstate.variables = flax.serialization.from_bytes(vstate.variables, file.read())
                 
-        optimizer = nk.optimizer.Sgd(learning_rate= self.lr )
+        optimizer = nk.optimizer.Sgd(learning_rate= self.lr)
 
         gs_driver = nk.driver.VMC_SR( self.hamiltonian, optimizer= optimizer, variational_state= vstate, diag_shift=0.05 )
 

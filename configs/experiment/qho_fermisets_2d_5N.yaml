@@ -7,7 +7,7 @@ system:
 
 ansatz:
   model: fermi_sets
-  hidden_units : 16
+  hidden_units : 32
   #hydra uses null for "None"
   pretrained_path: null 
 
