@@ -69,7 +69,7 @@ class FermiSets(nnx.Module):
      (Fermions = Bosons + One).” doi:10.48550/arXiv.2510.11431.
     """
      
-    def __init__(self , dim: int , N: int, rngs: nnx.Rngs, L: float = None , hidden_units: int = 8 ):
+    def __init__(self , dim: int , N: int, rngs: nnx.Rngs, log : logging.Logger,  pool_fct_name : str = None, L: float = None , hidden_units: int = 8 ):
 
         self.dim = dim 
         self.N = N 
@@ -87,32 +87,24 @@ class FermiSets(nnx.Module):
         ### RHO
 
         self.rho_dense1 = nnx.Linear(in_features=hidden_units, out_features=hidden_units, rngs=rngs)
-        self.rho_dense2 = nnx.Linear(in_features=hidden_units, out_features=1, rngs=rngs)
 
         ### Psi layer, combining symmetric and antisymmetric features
-        self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 3 , out_features=hidden_units+3, rngs=rngs) # +1 for Re{} and Im{} of the Log(nu)
-        self.Psi_dense2 = nnx.Linear(in_features=hidden_units+ 3 , out_features=1, rngs=rngs)
+        self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 2 , out_features=(hidden_units+2)*4, rngs=rngs) # +1 for Re{} and Im{} of the Log(nu)
+        self.Psi_dense2 = nnx.Linear(in_features=(hidden_units+ 2)*4 , out_features=2, rngs=rngs)
 
 
     def nu_antisymmetric(self, x): 
-            #print("starting est poly")
             x_reshaped = x.reshape(-1, self.N, self.dim)
-            #rows, cols = jnp.tril_indices(self.N, k=-1)
-            
             #x is (batch, N, dim)
-            if self.dim == 1:                 
-                # r = x_reshaped[..., 0]
-                # #all pairwise differences with broadcasting 
-                # diff = r[:, :, None] - r[:, None, :] # Shape: (batch, N, N) 
+            if self.dim == 1: 
 
-                # valid_diffs = diff[:, rows, cols] #lower triangular
-            
-                # log_diffs = jnp.log(valid_diffs.astype(complex))
+                #N = x.shape[-1]
+                #using broadcasting, x[..., :, None] has shape (batch, N, 1) and x[..., None, :] (batch, 1, N), so diff_matrix has shape (batch, N, N)
+                #diff_matrix = x[..., :, None] - x[..., None, :]
+                #return jnp.sign(jnp.prod(jnp.diff(x, axis=1), axis=-1)) # sign of product of differences
 
-                
-                # return jnp.sum(log_diffs, axis=1)
-
-                #non-vectorised code
+                #TODO the very naive approach, to be vectorised 
+             
                 batch_size = x_reshaped.shape[0]
                 y = jnp.zeros((batch_size, 1))
 
@@ -126,86 +118,77 @@ class FermiSets(nnx.Module):
                         diff = ( r_i - r_j) 
                         log_diff = jnp.log(diff.astype(jnp.complex64))
                         y = y + log_diff
-                #print("finished est poly ")
-                return y.reshape(-1)
-         
+
+                y = y.squeeze() 
+                return y
+
             elif self.dim == 2: 
 
                 batch_size = x_reshaped.shape[0]
-                
-                y = jnp.zeros((batch_size, ), dtype= jnp.complex64) # must be 1D ! 
 
-                for i in range(self.N): 
+                #trying Attila's regularisation fct
+                z = x_reshaped[:, :, 0] + 1j * x_reshaped[:, :, 1]
+                idx_i, idx_j = jnp.tril_indices(z.shape[1], k=-1)
+                diff = z[:, idx_i] - z[:, idx_j]
 
-                    r_i = x_reshaped[:, i , : ]
+                epsilon = 1e-7 + 1e-7j
+                diff_safe = diff + epsilon
+                # |z|^2 = Re(z)^2 + Im(z)^2
+                diff_sq = jnp.square(jnp.real(diff_safe)) + jnp.square(jnp.imag(diff_safe))
+                a = 1.0 
+                r_test = diff_safe / jnp.sqrt(diff_sq + a**2)
+                y = jnp.prod(r_test, axis=1)
 
-                    z_i = r_i[ : , 0] + 1j * r_i[ : , 1] 
+                return y
 
-                    for j in range(i): 
-                        r_j = x_reshaped[:, j, :]
-                        z_j = r_j[:, 0] + 1j * r_j[:, 1]
-
-                        diff = (z_i - z_j)
-
-                        y = y + jnp.log(diff)
-                return y 
 
             else:
                 raise NotImplementedError
     
-    def eval_psi0(self, x, nu): #nu is passed not as functor but as value 
+    def eval_psi0(self, x, nu):
         #x is (batch, N_particles, dim)
         x_reshaped = x.reshape(-1, self.N, self.dim) #-1 inferes the batch size automatically 
-
 
         y = self.phi_dense1(x_reshaped)
         y = nnx.gelu(y)
         y = self.phi_dense2(y)
-
-        y = jnp.sum(y, axis=1) # s_j = Sigma_i->N ( phi_j (x_i))  Not to confuse , this is still j sums of N 
+        y = jnp.sum(y, axis=1)
 
         y = self.rho_dense1(y)
         y = nnx.gelu(y)
 
-        log_nu_real = jnp.real(nu)
-        log_nu_imag = jnp.imag(nu)
-        safe_real = jnp.clip(log_nu_real, a_min=-15.0, a_max=15.0)[:, None]
-        phase_cos = jnp.cos(log_nu_imag)[:, None]
-        phase_sin = jnp.sin(log_nu_imag)[:, None]
+        log_nu_real = jnp.real(nu)[:, None]
+        log_nu_imag = jnp.imag(nu)[:, None]
 
-        log_feat_concat = jnp.concatenate([y, safe_real, phase_cos, phase_sin], axis=-1)
+        log_feat_concat = jnp.concatenate([y, log_nu_real, log_nu_imag], axis=-1)
 
         logPsi = self.Psi_dense1(log_feat_concat)
         logPsi = nnx.gelu(logPsi)
-        logPsi = self.Psi_dense2(logPsi) #TODO try complex 
+        logPsi = self.Psi_dense2(logPsi) #now is an array
 
-        logPsi = logPsi.squeeze() 
+        logPsireal = logPsi[:, 0]
+        logPsiphase = logPsi[:, 1]
 
-        return logPsi
+        logPsi_comp = logPsireal + 1j * logPsiphase #log psi = log(R) + log(phase)
+
+        logPsi_comp = logPsi_comp.squeeze() 
+
+        return logPsi_comp
 
     def __call__(self, x : jax.Array):
 
         nu = self.nu_antisymmetric(x)
-
-        # feeding dummy tensor to check antisymmetry
-        # idx = jnp.arange(x.shape[-2]) 
-        # idx = idx.at[0].set(1).at[1].set(0) # Swapping particle 0 and particle 1
-        # x_swapped = x[..., idx, :]
-
-        # nu_minus = self.nu_antisymmetric(x_swapped)
-
-        # self.log.info("nu(x) - Pnu(x) = " , jnp.abs(nu + nu_minus)) ##TODO make printing with call back function, jax does not allow log.info
-  
-        log_psi0_plus = self.eval_psi0(x, nu)
-        log_psi0_minus = self.eval_psi0(x, nu + 1j * jnp.pi) # nu + 1j * jnp.pi is a swap ( nu -> -nu) in complex space 
-
+        log_psi0_plus = self.eval_psi0(x, nu) 
+        log_psi0_minus = self.eval_psi0(x, -nu) # nu + 1j * jnp.pi is a swap ( nu -> -nu) in complex space 
+        
         stacked_logs = jnp.stack([log_psi0_plus, log_psi0_minus], axis=-1)
         weights = jnp.array([0.5, -0.5])
-        log_psi_final = jax.nn.logsumexp(stacked_logs, axis=-1, b=weights)
+        log_psi_nn = jax.nn.logsumexp(stacked_logs, axis=-1, b=weights)
 
-        #jax.debug.print("log_psi_boson = {} and log_antisymmetric = {}", log_psi_boson,log_antisymmetric)
-        return log_psi_final
-    
+        log_gaussian_factor = -0.5 * jnp.sum(jnp.square(x), axis=-1)
+
+        return log_psi_nn + log_gaussian_factor
+        
 
     
 class Gaussian(nnx.Module): 
