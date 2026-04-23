@@ -65,6 +65,7 @@ def main(cfg : DictConfig):
     is_fermionic = "fermi" in cfg.ansatz.model
     statistics = "fermion" if is_fermionic else "boson"
     
+    
     exact_energy = exact_qho_gs_energy(cfg.system.N, cfg.system.dim, statistics)
 
     hydra_cfg = HydraConfig.get()
@@ -94,6 +95,7 @@ def main(cfg : DictConfig):
             rngs= nnx.Rngs(42),
             N = cfg.system.N, 
             hidden_units= cfg.ansatz.hidden_units,
+            out_units = cfg.ansatz.out_units,
             log= log
         )
 
@@ -111,17 +113,21 @@ def main(cfg : DictConfig):
                                             sweep_size=cfg.sampler.sweep_size) ##to make variables 
 
     trainer = Trainer(
-     sampler=sampler,
-     hamiltonian = system.H, 
-     model = ansatz,
-     lr = cfg.trainer.lr,
-     vmc_iters= cfg.trainer.vmc_iters,
-     n_samples= cfg.trainer.n_samples,
-     log = log,
-     log_path = log_path,
-     seed=cfg.get("seed", 42),
-     pretrained_path= cfg.ansatz.pretrained_path,
-     exact_gs_energy=exact_energy
+        sampler=sampler,
+        hamiltonian=system.H,
+        model=ansatz,
+        lr=cfg.trainer.lr,
+        vmc_iters=cfg.trainer.vmc_iters,
+        log=log,
+        n_samples=cfg.trainer.n_samples,
+        log_path=log_path,
+        pretrained_path=cfg.ansatz.pretrained_path,
+        diag_shift=cfg.trainer.diag_shift,
+        n_discard_per_chain=cfg.trainer.n_discard_per_chain,
+        exact_gs_energy=exact_energy,
+        seed=cfg.get("seed", 42),
+        momentum_beta=cfg.trainer.momentum_beta,
+        optimizer=cfg.trainer.optimizer,
     )
     
     trainer()

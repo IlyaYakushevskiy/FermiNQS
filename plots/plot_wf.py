@@ -14,18 +14,27 @@ def main():
     
     # 1. Initialize System and Ansatz
     system = System(N=N, dim=dim, mass=1.0, potential="qho_no_inter")
-    ansatz = FermiSets(dim=dim, rngs=nnx.Rngs(42), N=N, hidden_units=32)
+    #ansatz = FermiSets(dim=dim, rngs=nnx.Rngs(43), N=N, hidden_units=16, out_units= 20, log = None)
+
+    ansatz = FermiSets(
+            dim= dim,
+            rngs= nnx.Rngs(43),
+            N = N, 
+            hidden_units= 16,
+            out_units = 20,
+            log= None
+        )
     
     sampler = nk.sampler.MetropolisGaussian(system.hi, 
                                             sigma=0.1,
-                                            n_chains=1024,
+                                            n_chains=32,
                                             sweep_size=128) 
     
-    vstate = nk.vqs.MCState(sampler, ansatz, n_samples=10**4, n_discard_per_chain=100)
+    vstate = nk.vqs.MCState(sampler, ansatz, n_samples=10**3, n_discard_per_chain=100)
 
     # 2. Load trained parameters
     
-    mpack_path = "outputs/2026-04-20/22-53-56/optimization_results.mpack"
+    mpack_path = "/Users/ilyayakushevskiy/code/FermiNQS/outputs/2026-04-23/16-15-57/optimization_results.mpack"
     with open(mpack_path, "rb") as file:
         vstate.variables = flax.serialization.from_bytes(vstate.variables, file.read())
 
@@ -43,14 +52,17 @@ def main():
         [-1.0, 1.0],  # Particle 1 (Fixed)
         [-1.0, -1.0], # Particle 2 (Fixed)
         [1.0, -1.0],  # Particle 3 (Fixed)
-        [1.0, 1.0]    # Particle 4 (Fixed)
+        [3.2, 1.0]    # Particle 4 (Fixed)
     ])
 
     # Tile the configuration for the whole batch
     full_configs = jnp.tile(fixed_coords, (batch_size, 1, 1)) # Shape: (10000, 5, 2)
     
+    
     # Overwrite the coordinates of Particle 0 with the grid points
     full_configs = full_configs.at[:, 0, :].set(grid_2d) 
+
+    full_configs = jnp.reshape(full_configs, [-1,10])
 
     # 5. Evaluate the wave function
 
@@ -66,6 +78,7 @@ def main():
 
     # 6. Calculate the components
     real_psi = (jnp.exp(log_mag_shifted) * jnp.cos(phase)).reshape(100, 100)
+    img_psi = (jnp.exp(log_mag_shifted) * jnp.sin(phase)).reshape(100, 100)
     prob_density = jnp.exp(2.0 * log_mag_shifted).reshape(100, 100)
 
     # 7. Plotting
@@ -94,7 +107,7 @@ def main():
 
     plt.tight_layout()
 
-    plt.savefig("plots/the_long_one_32h.png", bbox_inches="tight")
+    plt.savefig("plots/the_img_part.png", bbox_inches="tight")
     print("ploted and saved")
     plt.show()
 

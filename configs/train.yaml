@@ -3,15 +3,28 @@ hydra:
   job:
     chdir: True
 
+seed: 42
+
 system:
   N: 1
   dim: 1
   mass: 1.0
+  potential: qho_no_inter
 
 ansatz:
   model: "gaussian"
   pretrained_path: null
 
+sampler:
+  sigma: 0.1
+  n_chains: 16
+  sweep_size: 32
+
 trainer:
   lr: 0.01
   vmc_iters: 300
+  n_samples: 10000
+  diag_shift: 0.05
+  n_discard_per_chain: 100
+  momentum_beta: 0.9
+  optimizer: sgd
