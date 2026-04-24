@@ -34,7 +34,7 @@ def main():
 
     # 2. Load trained parameters
     
-    mpack_path = "/Users/ilyayakushevskiy/code/FermiNQS/outputs/2026-04-23/16-15-57/optimization_results.mpack"
+    mpack_path = "/home/ilya/FermiNQS/outputs/2026-04-23/18-02-04/optimization_results.mpack"
     with open(mpack_path, "rb") as file:
         vstate.variables = flax.serialization.from_bytes(vstate.variables, file.read())
 

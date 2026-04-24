@@ -7,18 +7,18 @@ system:
 
 ansatz:
   model: fermi_sets
-  hidden_units : 16
+  hidden_units : 32
   #hydra uses null for "None"
   pretrained_path: null 
   out_units: 20
 
 
 trainer:
-  vmc_iters: 400
-  lr: 0.008
+  vmc_iters: 1000
+  lr: 0.02
   n_samples: 10000
 
 sampler: 
   sigma: 0.1
-  n_chains: 32
+  n_chains: 64
   sweep_size: 32 #was 32
