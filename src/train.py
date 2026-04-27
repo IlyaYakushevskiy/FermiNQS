@@ -64,14 +64,30 @@ class Trainer:
             with open(ckpt_filename, "wb") as f:
                 f.write(flax.serialization.to_bytes(vstate.variables))
 
-            ##estimate antisymmetric part nu , validate 
+            #energy check on the copy of a refreshed sampler
+
+            self.log.info(f"running validation at step {step}...")
+            
+            val_state = nk.vqs.MCState(
+                sampler=driver.state.sampler,
+                model=driver.state.model,
+                n_samples=self.n_samples , 
+                seed=self.seed + step 
+            )
+            
+            val_state.variables = driver.state.variables
+            val_energy_stats = val_state.expect(self.hamiltonian)
+            
+            self.log.info(f"Validation Energy: {val_energy_stats}")
+
+            #plotting
             plot_path = os.path.join(working_dir, "plots") # no / needed 
             os.makedirs(plot_path, exist_ok=True)
             plot_name = f"validation_step_{step}"
-            plot_title = f" {self.run_name}, validation of step {step}"
+            plot_title = f" {self.run_name}, validation of step {step} with validation energy {val_energy_stats}"
             plot_wf( plot_name = plot_name, plot_path= plot_path, plot_title= plot_title, system = self.system, vstate = vstate)
 
-            #energy check on the fresh samper ... #TODO 
+            
             
             self.log.info(f"Checkpoint saved to: {ckpt_filename}")
 
