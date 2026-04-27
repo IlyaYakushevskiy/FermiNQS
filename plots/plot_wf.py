@@ -8,6 +8,11 @@ from flax import nnx
 from src.system import System
 from src.ansatz import FermiSets
 
+import os
+import re
+import matplotlib.image as mpimg
+import matplotlib.animation as animation
+
 def nu_antisymmetric(x, dim, N): 
     if dim == 2: 
         x_reshaped = x.reshape(-1, N, dim)
@@ -117,7 +122,64 @@ def plot_wf ( plot_name : str, plot_path : str, plot_title : str, vstate : nk.vq
     plt.savefig( f"{plot_path}/{plot_name}", bbox_inches="tight")
     print(f"ploted {plot_name} and saved")
 
+def animate_training_plots(plot_dir: str, output_path: str, fps: int = 5):
+    """
+    Reads a directory of training plot PNGs and stitches them into a movie.
+    """
+    # 1. Grab all PNG files
+    valid_files = [f for f in os.listdir(plot_dir) if f.endswith('.png')]
     
+    if not valid_files:
+        print(f"Error: No PNG files found in {plot_dir}")
+        return
+
+    # 2. Sort numerically by step number (CRITICAL)
+    # This looks for "step_10", "step_100", etc., and sorts by the integer
+    def extract_step(filename):
+        match = re.search(r'step_(\d+)', filename)
+        return int(match.group(1)) if match else -1
+
+    valid_files.sort(key=extract_step)
+    
+    print(f"Found {len(valid_files)} frames. First frame: {valid_files[0]}, Last: {valid_files[-1]}")
+
+    # 3. Setup the Matplotlib Figure
+    # We make it large to maintain the resolution of your 1x4 subplot grid
+    fig, ax = plt.subplots(figsize=(18, 5)) 
+    
+    # We turn off the axis lines because your PNGs already contain their own axes and labels!
+    fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=None, hspace=None)
+    ax.axis('off') 
+
+    frames = []
+    print("Loading images into memory...")
+    for filename in valid_files:
+        img_path = os.path.join(plot_dir, filename)
+        img = mpimg.imread(img_path)
+        
+        # imshow returns an AxesImage object. ArtistAnimation requires a list of these.
+        im = ax.imshow(img, animated=True)
+        frames.append([im])
+
+    print("Generating animation...")
+    # interval is in milliseconds. 1000/fps gives the correct delay between frames.
+    ani = animation.ArtistAnimation(fig, frames, interval=1000/fps, blit=True, repeat_delay=2000)
+
+    try:
+        # Saving as MP4 requires ffmpeg to be installed on your system
+        ani.save(output_path, writer='ffmpeg', fps=fps)
+        print(f"Success! Saved animation to {output_path}")
+    except Exception as e:
+        print(f"\nFailed to save as MP4. Do you have 'ffmpeg' installed on your system?")
+        print(f"Error details: {e}")
+        
+        # Fallback to GIF which requires no external dependencies (uses Pillow)
+        gif_path = output_path.replace('.mp4', '.gif')
+        print(f"\nFalling back to GIF format...")
+        ani.save(gif_path, writer='pillow', fps=fps)
+        print(f"Success! Saved animation to {gif_path}")
+
+    plt.close(fig)
 
 
 def main():
@@ -224,4 +286,8 @@ def main():
     plt.show()
 
 if __name__ == "__main__":
-    main()
+    #main()
+    plot_directory = "/home/ilya/FermiNQS/outputs/2026-04-27/21-59-37/plots"
+    output_movie = "/home/ilya/FermiNQS/outputs/2026-04-27/21-59-37/training_evolution.mp4"
+    
+    animate_training_plots(plot_dir=plot_directory, output_path=output_movie, fps=10)

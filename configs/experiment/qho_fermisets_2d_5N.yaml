@@ -14,13 +14,13 @@ ansatz:
 
 
 trainer:
-  vmc_iters: 20
-  lr: 0.008
+  vmc_iters: 1000
+  lr: 0.005
   n_samples: 10000
-  diag_shift: 0.01
+  diag_shift: 0.05
   validation: true
 
 sampler: 
   sigma: 0.1
   n_chains: 1024
-  sweep_size: 32 #was 32
+  sweep_size: 32 
