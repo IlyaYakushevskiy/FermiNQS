@@ -7,18 +7,20 @@ system:
 
 ansatz:
   model: fermi_sets
-  hidden_units : 32
+  hidden_units : 16
   #hydra uses null for "None"
-  pretrained_path: null 
-  out_units: 20
+  pretrained_path: '/home/ilya/FermiNQS/outputs/2026-04-27/14-03-21/optimization_results.mpack' 
+  out_units: 10
 
 
 trainer:
-  vmc_iters: 1000
-  lr: 0.02
+  vmc_iters: 20
+  lr: 0.008
   n_samples: 10000
+  diag_shift: 0.01
+  validation: true
 
 sampler: 
   sigma: 0.1
-  n_chains: 64
+  n_chains: 1024
   sweep_size: 32 #was 32

@@ -113,9 +113,6 @@ class FermiSets(nnx.Module):
         logPsi = self.Psi_dense2(logPsi) 
      
 
-
-
-
         logPsireal, logPsiphase = jnp.split(logPsi, 2, axis= -1)
 
         logPsi_comp = logPsireal + 1j * logPsiphase #log psi = log(R) + log(phase)

@@ -40,12 +40,13 @@ def exact_qho_gs_energy(N: int, dim: int, statistics: str = "fermion") -> float:
 @hydra.main(version_base=None, config_path="configs", config_name="train")
 def main(cfg : DictConfig): 
 
+    
+
     hydra_cfg = HydraConfig.get()
     current_out_dir = hydra_cfg.runtime.output_dir
-    orig_cwd = get_original_cwd()
-
     time_stamp = os.path.basename(current_out_dir) 
     run_name = f"{cfg.system.potential}_{cfg.ansatz.model}_N{cfg.system.N}_{time_stamp}"
+    orig_cwd = get_original_cwd()
 
     if cfg.get("use_wnb", False): 
         wandb.init(
@@ -90,14 +91,33 @@ def main(cfg : DictConfig):
         )
 
     if cfg.ansatz.model ==  "fermi_sets": 
+        fermi_hidden_units = cfg.ansatz.get("hidden_units", 8)
+        fermi_out_units = cfg.ansatz.get("out_units", 10)
+        fermi_pool_fct_name = cfg.ansatz.get("pool_fct_name", None)
+        fermi_L = cfg.ansatz.get("L", None)
+
         ansatz = FermiSets(
             dim= cfg.system.dim,
             rngs= nnx.Rngs(42),
             N = cfg.system.N, 
-            hidden_units= cfg.ansatz.hidden_units,
-            out_units = cfg.ansatz.out_units,
+            hidden_units= fermi_hidden_units,
+            out_units = fermi_out_units,
+            pool_fct_name=fermi_pool_fct_name,
+            L=fermi_L,
             log= log
         )
+
+        #not very usefull, delete mb 
+        if wandb.run is not None:
+            wandb.config.update(
+                {
+                    "ansatz/hidden_units_effective": fermi_hidden_units,
+                    "ansatz/out_units_effective": fermi_out_units,
+                    "ansatz/pool_fct_name_effective": fermi_pool_fct_name,
+                    "ansatz/L_effective": fermi_L,
+                },
+                allow_val_change=True,
+            )
 
     if cfg.ansatz.model ==  "gaussian_fermions": 
         ansatz = GaussianFermions(
@@ -112,6 +132,7 @@ def main(cfg : DictConfig):
                                             n_chains=cfg.sampler.n_chains,
                                             sweep_size=cfg.sampler.sweep_size) ##to make variables 
 
+    
     trainer = Trainer(
         sampler=sampler,
         hamiltonian=system.H,
@@ -128,6 +149,9 @@ def main(cfg : DictConfig):
         seed=cfg.get("seed", 42),
         momentum_beta=cfg.trainer.momentum_beta,
         optimizer=cfg.trainer.optimizer,
+        validation= cfg.trainer.validation, 
+        run_name = run_name,
+        system = system
     )
     
     trainer()
