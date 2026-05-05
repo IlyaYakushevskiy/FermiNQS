@@ -19,6 +19,8 @@ from plots.plot_errs import plot_err
 
 log = logging.getLogger(__name__)
 
+#jax.config.update("jax_debug_nans", True)
+
 def exact_qho_gs_energy(N: int, dim: int, statistics: str = "fermion") -> float:
 
     base_energy = 0.5 * dim

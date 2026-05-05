@@ -7,6 +7,8 @@ import netket as nk
 import wandb
 from plots.plot_wf import plot_wf
 from src.system import System
+import jax.scipy.sparse.linalg as jsp_linalg
+from functools import partial
 
 
 class Trainer:
@@ -57,7 +59,7 @@ class Trainer:
         ckpt_dir = os.path.join(working_dir, "checkpoints")
         os.makedirs(ckpt_dir, exist_ok=True)
 
-        if step % 10 == 0: 
+        if step % 50 == 0: 
             ckpt_filename = os.path.join(ckpt_dir, f"step_{step}.mpack")
 
             vstate = driver.state
@@ -66,26 +68,26 @@ class Trainer:
 
             #energy check on the copy of a refreshed sampler
 
-            self.log.info(f"running validation at step {step}...")
+            # self.log.info(f"running validation at step {step}...")
             
-            val_state = nk.vqs.MCState(
-                sampler=driver.state.sampler,
-                model=driver.state.model,
-                n_samples=self.n_samples , 
-                seed=self.seed + step 
-            )
+            # val_state = nk.vqs.MCState(
+            #     sampler=driver.state.sampler,
+            #     model=driver.state.model,
+            #     n_samples=self.n_samples , 
+            #     seed=self.seed + step 
+            # )
             
-            val_state.variables = driver.state.variables
-            val_energy_stats = val_state.expect(self.hamiltonian)
+            # val_state.variables = driver.state.variables
+            # val_energy_stats = val_state.expect(self.hamiltonian)
             
-            self.log.info(f"Validation Energy: {val_energy_stats}")
+            # self.log.info(f"Validation Energy: {val_energy_stats}")
 
             #plotting
-            plot_path = os.path.join(working_dir, "plots") # no / needed 
-            os.makedirs(plot_path, exist_ok=True)
-            plot_name = f"validation_step_{step}"
-            plot_title = f" {self.run_name}, validation of step {step} with validation energy {val_energy_stats}"
-            plot_wf( plot_name = plot_name, plot_path= plot_path, plot_title= plot_title, system = self.system, vstate = vstate)
+            # plot_path = os.path.join(working_dir, "plots") # no / needed 
+            # os.makedirs(plot_path, exist_ok=True)
+            # plot_name = f"validation_step_{step}"
+            # plot_title = f" {self.run_name}, validation of step {step} with validation energy {val_energy_stats}"
+            # plot_wf( plot_name = plot_name, plot_path= plot_path, plot_title= plot_title, system = self.system, vstate = vstate)
 
             
             
@@ -102,10 +104,14 @@ class Trainer:
             n_discard_per_chain=self.n_discard_per_chain,
         )
 
+
         if self.pretrained_path is not None:
             with open(self.pretrained_path, "rb") as file:
                 vstate.variables = flax.serialization.from_bytes(vstate.variables, file.read())
 
+        vstate.chunk_size = 1024
+
+        
         if self.optimizer == "sgd":
             optimizer = nk.optimizer.Sgd(learning_rate=self.lr)
         elif self.optimizer == "momentum":
@@ -114,10 +120,13 @@ class Trainer:
             raise ValueError(f"Unknown optimizer: {self.optimizer}")
 
         gs_driver = nk.driver.VMC_SR(
-            self.hamiltonian,
-            optimizer=optimizer,
-            variational_state=vstate,
-            diag_shift=self.diag_shift,
+            hamiltonian= self.hamiltonian,
+            variational_state = vstate,
+            optimizer= optimizer,
+            diag_shift=self.diag_shift,                           
+            mode="complex",                    
+            chunk_size_bwd=1024
+            
         )
         # driver expects callbacks of form callback: CallbackT | Iterable[CallbackT] = lambda *x: True,
 
@@ -131,7 +140,7 @@ class Trainer:
         if self.validation == True: 
             gs_driver.run(n_iter=self.vmc_iters, out=loggers, callback= self.validation_callback)
         else: 
-            gs_driver.run(n_iter=self.vmc_iters, out=loggers, callback= None)
+            gs_driver.run(n_iter=self.vmc_iters, out=loggers)
 
         self.eigenE = vstate.expect(self.hamiltonian)
 
@@ -140,7 +149,7 @@ class Trainer:
 
         self.log.info(f"Optimized energy and relative error: {energy_mean} ± {mc_error}")
 
-    
+      
 
 
 class LiveWandbLogger:

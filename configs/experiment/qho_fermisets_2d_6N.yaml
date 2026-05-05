@@ -1,24 +1,25 @@
 # @package _global_
-seed: 43
+seed: 42
 system:
-  N: 5
+  N: 4
   dim: 2
   potential: qho_no_inter
 
 ansatz:
   model: fermi_sets
-  hidden_units : 16
+  hidden_units : 42
   #hydra uses null for "None"
-  pretrained_path: '/home/ilya/FermiNQS/outputs/2026-04-27/14-03-21/optimization_results.mpack' 
-  out_units: 10
+  pretrained_path: null
+  out_units: 15
 
 
 trainer:
   vmc_iters: 1000
-  lr: 0.005
-  n_samples: 10000
-  diag_shift: 0.05
+  lr: 0.05
+  n_samples: 10240
+  diag_shift: 0.05 # imroves stability but slows down convergence
   validation: true
+  optmizer: momentum
 
 sampler: 
   sigma: 0.1

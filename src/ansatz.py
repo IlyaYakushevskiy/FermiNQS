@@ -79,10 +79,12 @@ class FermiSets(nnx.Module):
                 z = x_reshaped[:, :, 0] + 1j * x_reshaped[:, :, 1]
                 idx_i, idx_j = jnp.tril_indices(z.shape[1], k=-1)
                 diff = z[:, idx_i] - z[:, idx_j]
-
-                diff_sq = jnp.square(jnp.real(diff)) + jnp.square(jnp.imag(diff))
+                diff_sq = jnp.square(jnp.abs(diff))
+                    
                 a = 1.0 
+                
                 r_test = diff / jnp.sqrt(diff_sq + a**2)
+                
                 y = jnp.prod(r_test, axis=1)
 
                 return y
@@ -90,6 +92,32 @@ class FermiSets(nnx.Module):
 
             else:
                 raise NotImplementedError
+            
+    def safe_complex_logsumexp(self, x, b=None, eps=1e-12):
+        """
+        Assuming that's what actually returns nan in my code, every time innersum is close to machine preciosion 
+        we evaluate log(0) = nan which corrupts all the code, trying to prevent speifically this situation 
+        """
+       
+        x_real = jnp.real(x)
+        x_max = jnp.max(x_real, axis=-1, keepdims=True)
+
+        shifted_x = x - x_max
+
+        if b is not None:
+            exp_sum = jnp.sum(b * jnp.exp(shifted_x), axis=-1)
+        else:
+            exp_sum = jnp.sum(jnp.exp(shifted_x), axis=-1)
+
+        safe_exp_sum = jnp.where(
+            jnp.abs(exp_sum) < eps,
+            eps + 0j, 
+            exp_sum
+        )
+
+        out = jnp.log(safe_exp_sum) + jnp.squeeze(x_max, axis=-1)
+    
+        return out
     
     def eval_psi0(self, x, nu):
         #x is (batch, N_particles, dim)
@@ -117,8 +145,8 @@ class FermiSets(nnx.Module):
 
         logPsi_comp = logPsireal + 1j * logPsiphase #log psi = log(R) + log(phase)
 
-
-        logPsi_comp = jax.nn.logsumexp(logPsi_comp,axis=-1) 
+        #logPsi_comp = jax.nn.logsumexp(logPsi_comp,axis=-1) 
+        logPsi_comp = self.safe_complex_logsumexp(logPsi_comp) 
         #logPsi_comp = logPsi_comp.squeeze() 
 
         return logPsi_comp
@@ -131,17 +159,21 @@ class FermiSets(nnx.Module):
         
         stacked_logs = jnp.stack([log_psi0_plus, log_psi0_minus], axis=-1)
         weights = jnp.array([0.5, -0.5])
-        log_psi_nn = jax.nn.logsumexp(stacked_logs, axis=-1, b=weights)
+        
+        #log_psi_nn = jax.nn.logsumexp(stacked_logs, axis=-1, b=weights)
+
+        log_psi_nn = self.safe_complex_logsumexp(stacked_logs, b=weights)
+        
 
         log_gaussian_factor = -0.5 * jnp.sum(jnp.square(x), axis=-1)
 
         logPsi = log_psi_nn + log_gaussian_factor
 
-        logPsireal = jnp.real(logPsi) 
-        logPsicompl = jnp.imag(logPsi) 
+        #logPsireal = jnp.real(logPsi) 
+        #logPsicompl = jnp.imag(logPsi) 
 
-        Psi = logPsireal + jnp.log(jnp.cos(logPsicompl)+ 0j )
-        return Psi
+        #Psi = logPsireal + jnp.log(jnp.cos(logPsicompl)+ 0j )
+        return logPsi
         
 
 class DeepSetsNN(nnx.Module): 
@@ -262,7 +294,18 @@ class GaussianFermions(nnx.Module):
                         r_j = x_reshaped[:, j, :]
                         #log this part instead ,then we're talking sums 
                         diff = ( r_i - r_j) 
-                        log_diff = jnp.log(diff.astype(jnp.complex64))
+
+                        ##assumption : diff close to machine precision cause nan in energy 
+                        eps = 1e-7
+                        #jnp.where( condition, if true, if false)  , preserve sign, fix min magnitude 
+                        safe_diff = jnp.where(
+                            jnp.abs(diff) < eps, 
+                            eps * jnp.sign(diff),
+                            diff
+                        )
+
+                        log_diff = jnp.log(safe_diff.astype(jnp.complex64))
+
                         y = y + log_diff
 
                 y = y.squeeze()
