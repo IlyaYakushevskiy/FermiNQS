@@ -41,30 +41,35 @@ def plot_wf ( plot_name : str, plot_path : str, plot_title : str, vstate : nk.vq
     grid_2d = np.stack([X.ravel(), Y.ravel()], axis=-1) # Shape: (10000, 2)
     batch_size = grid_2d.shape[0]
     
-    fixed_coords = jnp.array([
-        [0.0, 0.0],   # Particle 0 (Active, to be overwritten)
-        [-1.0, 1.0],  # Particle 1 (Fixed)
-        [-1.0, -1.0], # Particle 2 (Fixed)
-        [1.0, -1.0],  # Particle 3 (Fixed)
-        [1.0, 1.0]    # Particle 4 (Fixed)
+    R = 1.0
+
+
+    angles = jnp.array([jnp.pi / 2 + 2 * jnp.pi * k / 5 for k in range(5)])
+    pentagon_coords = jnp.stack([R * jnp.cos(angles), R * jnp.sin(angles)], axis=-1)
+
+    fixed_coords = jnp.vstack([
+        jnp.array([[0.0, 0.0]]),  
+        pentagon_coords           # Particles 1-5 (Fixed)
     ])
 
-    fixed_coords_flipped = jnp.array([
-        [0.0, 0.0],   # Particle 0 (Active, to be overwritten)
-        [-1.0, 1.0],  # Particle 1 (Fixed)
-        [-1.0, -1.0], # Particle 2 (Fixed)
-        [1.0, 1.0],  # Particle 3 (Fixed)
-        [1.0, -1.0]    # Particle 4 (Fixed)
-    ])
+# For the flipped coordinates, swap Particle 1 and Particle 2
+# Note: In JAX, arrays are immutable, so we use the .at[].set() syntax
+
+    # fixed_coords = jnp.array([
+    #     [0.0, 0.0],   # Particle 0 (Active, to be overwritten)
+    #     [-1.0, 1.0],  # Particle 1 (Fixed)
+    #     [-1.0, -1.0], # Particle 2 (Fixed)
+    #     [1.0, -1.0],  # Particle 3 (Fixed)
+    #     [1.0, 1.0],   # Particle 4 (Fixed)
+    #     [0.0, 0.0]    # Particle 5 (Fixed)
+    # ])
+
 
 
     full_configs = jnp.tile(fixed_coords, (batch_size, 1, 1)) # Shape: (10000, 5, 2)
     full_configs = full_configs.at[:, 0, :].set(grid_2d) 
-    full_configs = jnp.reshape(full_configs, [-1,10])
+    full_configs = jnp.reshape(full_configs, [-1,system.N * system.dim])
 
-    full_configs_flipped = jnp.tile(fixed_coords_flipped, (batch_size, 1, 1)) # Shape: (10000, 5, 2)
-    full_configs_flipped = full_configs_flipped.at[:, 0, :].set(grid_2d) 
-    full_configs_flipped = jnp.reshape(full_configs_flipped, [-1,10])
 
     log_psi = vstate.log_value(full_configs) # log is in form log(r)+iθ 
 
@@ -84,11 +89,7 @@ def plot_wf ( plot_name : str, plot_path : str, plot_title : str, vstate : nk.vq
     real_nu = jnp.real(nu_outputs).reshape(100, 100)
     img_nu = jnp.imag(nu_outputs).reshape(100, 100)
 
-    ##quick antisymmetry check, printing to output log 
-    nu_outputs_flipped = nu_antisymmetric( x = full_configs_flipped , dim = system.dim, N = system.N)
-
-    print( f"For step {plot_name} Norm of nu(x) + nu(-x): " , jnp.linalg.norm( nu_outputs + nu_outputs_flipped)) 
-
+    
     fig, axes = plt.subplots(1, 4, figsize=(18, 5))
     fig.suptitle(plot_title, fontsize=10, y=1.02)
     c0 = axes[0].contourf(X, Y, real_psi, levels=50, cmap="RdBu_r", vmin=-1.0, vmax=1.0)
@@ -287,7 +288,7 @@ def main():
 
 if __name__ == "__main__":
     #main()
-    plot_directory = "/home/ilya/FermiNQS/outputs/2026-04-27/21-59-37/plots"
-    output_movie = "/home/ilya/FermiNQS/outputs/2026-04-27/21-59-37/training_evolution.mp4"
+    plot_directory = "/home/ilya/FermiNQS/outputs/2026-04-28/09-18-52/plots"
+    output_movie = "/home/ilya/FermiNQS/outputs/2026-04-28/09-18-52/training_evolution.mp4"
     
     animate_training_plots(plot_dir=plot_directory, output_path=output_movie, fps=10)
