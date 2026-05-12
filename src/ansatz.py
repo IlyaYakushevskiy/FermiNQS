@@ -38,14 +38,14 @@ class FermiSets(nnx.Module):
         self.rho_dense1 = nnx.Linear(in_features=hidden_units, out_features=hidden_units, rngs=rngs)
 
         ### Psi layer, combining symmetric and antisymmetric features
-        self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 2 , out_features=(hidden_units+2)*2, rngs=rngs) # +1 for Re{} and Im{} of the Log(nu)
+        self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 2 , out_features=(hidden_units+2)*2, rngs=rngs) # +1 for Re{} and Im{} of the Log(eta)
         #self.Psi_dense2 = nnx.Linear(in_features=(hidden_units+ 2)*2 , out_features=(hidden_units+ 2)*2, rngs=rngs)
         #extra layer when not using SR 
         self.Psi_dense_extra = nnx.Linear(in_features=(hidden_units+2)*2 , out_features=(hidden_units+2)*2, rngs=rngs)
         self.Psi_dense2 = nnx.Linear(in_features=(hidden_units+ 2)*2 , out_features=out_units, rngs=rngs)
 
 
-    def nu_antisymmetric(self, x): 
+    def eta_antisymmetric(self, x): 
             x_reshaped = x.reshape(-1, self.N, self.dim)
             #x is (batch, N, dim)
             if self.dim == 1: 
@@ -122,7 +122,7 @@ class FermiSets(nnx.Module):
     
         return out
     
-    def eval_psi0(self, x, nu):
+    def eval_psi0(self, x, eta):
         #x is (batch, N_particles, dim)
         x_reshaped = x.reshape(-1, self.N, self.dim) #-1 inferes the batch size automatically 
 
@@ -135,11 +135,11 @@ class FermiSets(nnx.Module):
         y = nnx.gelu(y)
 
         
-        log_nu_real = jnp.real(nu)[:, None]
-        log_nu_imag = jnp.imag(nu)[:, None]
+        log_eta_real = jnp.real(eta)[:, None]
+        log_eta_imag = jnp.imag(eta)[:, None]
 
         #y + 2 real features + 2 imag features
-        log_feat_concat = jnp.concatenate([y, log_nu_real, log_nu_imag], axis=-1)
+        log_feat_concat = jnp.concatenate([y, log_eta_real, log_eta_imag], axis=-1)
 
         logPsi = self.Psi_dense1(log_feat_concat)
         logPsi = nnx.gelu(logPsi)
@@ -162,9 +162,9 @@ class FermiSets(nnx.Module):
 
     def __call__(self, x : jax.Array):
 
-        nu = self.nu_antisymmetric(x)
-        log_psi0_plus = self.eval_psi0(x, nu) 
-        log_psi0_minus = self.eval_psi0(x, -nu) # nu + 1j * jnp.pi is a swap ( nu -> -nu) in complex space 
+        eta = self.eta_antisymmetric(x)
+        log_psi0_plus = self.eval_psi0(x, eta) 
+        log_psi0_minus = self.eval_psi0(x, -eta) # eta + 1j * jnp.pi is a swap ( eta -> -eta) in complex space 
         
         stacked_logs = jnp.stack([log_psi0_plus, log_psi0_minus], axis=-1)
         weights = jnp.array([0.5, -0.5])
@@ -290,7 +290,7 @@ class GaussianFermions(nnx.Module):
 
         self.A = nnx.Param(inital_A)
     
-    def nu_antisymmetric(self, x): 
+    def eta_antisymmetric(self, x): 
             x_reshaped = x.reshape(-1, self.N, self.dim)
             #x is (batch, N, dim)
             if self.dim == 1:              
@@ -334,5 +334,5 @@ class GaussianFermions(nnx.Module):
 
         if self.dim ==  1:
             X_reshaped = X.reshape(-1, self.N, 1)
-            log_nu = self.nu_antisymmetric(X_reshaped)
-        return exponent + log_nu #nk expects log , don't exponentiate 
+            log_eta = self.eta_antisymmetric(X_reshaped)
+        return exponent + log_eta #nk expects log , don't exponentiate 
