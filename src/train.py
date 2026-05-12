@@ -10,6 +10,9 @@ from src.system import System
 import jax.scipy.sparse.linalg as jsp_linalg
 from functools import partial
 
+#for Adam
+import optax 
+
 
 class Trainer:
     def __init__(
@@ -22,6 +25,8 @@ class Trainer:
         vmc_iters: int,
         log: logging.Logger,
         run_name: str,
+        chunk_size : int,
+        lr_decay_rate : float = 1.0, 
         n_samples: int = 10_000,
         log_path: str | None = None,
         pretrained_path: str | None = None,
@@ -52,6 +57,8 @@ class Trainer:
         self.validation = validation
         self.run_name = run_name 
         self.system = system
+        self.chunk_size = chunk_size
+        self.lr_decay_rate = lr_decay_rate
         
     def validation_callback(self, step: int , log_data : dict, driver : nk.driver.AbstractVariationalDriver) -> bool: 
         # E.g., extracts "outputs/2026-04-27/17-17-34"
@@ -68,20 +75,21 @@ class Trainer:
 
             #energy check on the copy of a refreshed sampler
 
-            # self.log.info(f"running validation at step {step}...")
+            self.log.info(f"running validation at step {step}...")
             
-            # val_state = nk.vqs.MCState(
-            #     sampler=driver.state.sampler,
-            #     model=driver.state.model,
-            #     n_samples=self.n_samples , 
-            #     seed=self.seed + step 
-            # )
+            val_state = nk.vqs.MCState(
+                sampler=driver.state.sampler,
+                model=driver.state.model,
+                n_samples=self.n_samples , 
+                chunk_size=driver.state.chunk_size,
+                seed=self.seed + step 
+            )
             
-            # val_state.variables = driver.state.variables
-            # val_energy_stats = val_state.expect(self.hamiltonian)
+            val_state.variables = driver.state.variables
+            val_energy_stats = val_state.expect(self.hamiltonian)
             
-            # self.log.info(f"Validation Energy: {val_energy_stats}")
-
+            self.log.info(f"Validation Energy: {val_energy_stats}")
+            log_data["Validation_Energy"] = val_energy_stats 
             #plotting
             # plot_path = os.path.join(working_dir, "plots") # no / needed 
             # os.makedirs(plot_path, exist_ok=True)
@@ -102,6 +110,7 @@ class Trainer:
             n_samples=int(self.n_samples),
             seed=self.seed,
             n_discard_per_chain=self.n_discard_per_chain,
+            chunk_size= self.chunk_size
         )
 
 
@@ -109,25 +118,42 @@ class Trainer:
             with open(self.pretrained_path, "rb") as file:
                 vstate.variables = flax.serialization.from_bytes(vstate.variables, file.read())
 
-        vstate.chunk_size = 1024
-
+        lr_schedule = optax.exponential_decay(
+            init_value=self.lr, 
+            transition_steps=self.vmc_iters // 10, # e.g., drop LR every 10% of total iterations
+            decay_rate= self.lr_decay_rate                    
+        )
         
         if self.optimizer == "sgd":
             optimizer = nk.optimizer.Sgd(learning_rate=self.lr)
         elif self.optimizer == "momentum":
             optimizer = nk.optimizer.Momentum(learning_rate=self.lr, beta=self.momentum_beta)
+        elif self.optimizer == "adam":
+            self.log.info("Starting with Adam optimiser")
+            optimizer = optax.chain(
+                optax.clip_by_global_norm(1.0),        # grad clipping in nodes 
+                optax.adam(learning_rate=lr_schedule) 
+            )
         else:
             raise ValueError(f"Unknown optimizer: {self.optimizer}")
 
-        gs_driver = nk.driver.VMC_SR(
-            hamiltonian= self.hamiltonian,
-            variational_state = vstate,
-            optimizer= optimizer,
-            diag_shift=self.diag_shift,                           
-            mode="complex",                    
-            chunk_size_bwd=1024
-            
+        #Quick experiment, change for adam 
+
+        if self.optimizer == "adam":
+            gs_driver = nk.driver.VMC(
+            hamiltonian=self.hamiltonian,
+            variational_state=vstate,
+            optimizer=optimizer,
         )
+        else: 
+            gs_driver = nk.driver.VMC_SR(
+                hamiltonian= self.hamiltonian,
+                variational_state = vstate,
+                optimizer= optimizer,
+                diag_shift=self.diag_shift,                           
+                mode="complex",                    
+                chunk_size_bwd=1024
+            )
         # driver expects callbacks of form callback: CallbackT | Iterable[CallbackT] = lambda *x: True,
 
         self.log.info("running driver and logging...")

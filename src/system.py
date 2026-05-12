@@ -24,7 +24,7 @@ class System():
 
         if self.potential == "qho_no_inter":
             def v(x): 
-                return 0.5 * jnp.sum(x**2, axis=-1) # potential is 1/2 * hbar w * x^2 -> hbar * w = 1 , GS is 1/2 * hbar w * dim * particles
+                return 0.5 * jnp.sum(x**2, axis=-1) # potential is 1/2 * m w^2 * x^2 -> hbar * w = 1 , GS is 1/2 * hbar w * dim * particles
         #elif potential == ""
 
 

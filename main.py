@@ -139,6 +139,7 @@ def main(cfg : DictConfig):
         sampler=sampler,
         hamiltonian=system.H,
         model=ansatz,
+        chunk_size= cfg.trainer.chunk_size, 
         lr=cfg.trainer.lr,
         vmc_iters=cfg.trainer.vmc_iters,
         log=log,
@@ -153,7 +154,8 @@ def main(cfg : DictConfig):
         optimizer=cfg.trainer.optimizer,
         validation= cfg.trainer.validation, 
         run_name = run_name,
-        system = system
+        system = system,
+        lr_decay_rate = cfg.trainer.lr_decay_rate
     )
     
     trainer()

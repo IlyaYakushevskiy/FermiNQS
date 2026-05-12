@@ -30,6 +30,8 @@ class FermiSets(nnx.Module):
 
         self.phi_dense1 = nnx.Linear(in_features= dim , out_features= hidden_units, rngs= rngs) #dim * 2 if PBC map x -> (sin(x), cos(x))
         self.phi_dense2 = nnx.Linear(in_features= hidden_units, out_features= hidden_units, rngs=rngs  )
+
+        
         
         ### RHO
 
@@ -38,7 +40,8 @@ class FermiSets(nnx.Module):
         ### Psi layer, combining symmetric and antisymmetric features
         self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 2 , out_features=(hidden_units+2)*2, rngs=rngs) # +1 for Re{} and Im{} of the Log(nu)
         #self.Psi_dense2 = nnx.Linear(in_features=(hidden_units+ 2)*2 , out_features=(hidden_units+ 2)*2, rngs=rngs)
-
+        #extra layer when not using SR 
+        self.Psi_dense_extra = nnx.Linear(in_features=(hidden_units+2)*2 , out_features=(hidden_units+2)*2, rngs=rngs)
         self.Psi_dense2 = nnx.Linear(in_features=(hidden_units+ 2)*2 , out_features=out_units, rngs=rngs)
 
 
@@ -131,13 +134,19 @@ class FermiSets(nnx.Module):
         y = self.rho_dense1(y)
         y = nnx.gelu(y)
 
+        
         log_nu_real = jnp.real(nu)[:, None]
         log_nu_imag = jnp.imag(nu)[:, None]
 
+        #y + 2 real features + 2 imag features
         log_feat_concat = jnp.concatenate([y, log_nu_real, log_nu_imag], axis=-1)
 
         logPsi = self.Psi_dense1(log_feat_concat)
         logPsi = nnx.gelu(logPsi)
+
+        logPsi = self.Psi_dense_extra(logPsi)
+        logPsi = nnx.gelu(logPsi)
+
         logPsi = self.Psi_dense2(logPsi) 
      
 
