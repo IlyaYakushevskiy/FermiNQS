@@ -1,0 +1,29 @@
+# @package _global_
+seed: 42
+system:
+  N: 4
+  dim: 2
+  potential: qho_no_inter
+
+ansatz:
+  model: fermi_sets
+  hidden_units : 128 #try massive 
+  #hydra uses null for "None"
+  pretrained_path: /home/ilya/FermiNQS/outputs/2026-05-11/20-05-40/checkpoints/step_350.mpack
+  out_units: 20
+
+
+trainer:
+  vmc_iters: 1500
+  lr: 0.008
+  n_samples: 6144
+  #diag_shift: 0.01 # imroves stability but slows down convergence
+  validation: true
+  optimizer: adam
+  chunk_size: 1024
+  lr_decay_rate: 1.0
+
+sampler: 
+  sigma: 0.1
+  n_chains: 1024
+  sweep_size: 32 

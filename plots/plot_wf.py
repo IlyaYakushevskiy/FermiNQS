@@ -44,7 +44,7 @@ def plot_wf ( plot_name : str, plot_path : str, plot_title : str, vstate : nk.vq
     R = 1.0
 
 
-    angles = jnp.array([jnp.pi / 2 + 2 * jnp.pi * k / 5 for k in range(5)])
+    angles = jnp.array([jnp.pi / 2 + 2 * jnp.pi * k / 3 for k in range(3)])
     pentagon_coords = jnp.stack([R * jnp.cos(angles), R * jnp.sin(angles)], axis=-1)
 
     fixed_coords = jnp.vstack([
@@ -184,7 +184,7 @@ def animate_training_plots(plot_dir: str, output_path: str, fps: int = 5):
 
 
 def main():
-    N = 5
+    N = 4
     dim = 2
     
     # 1. Initialize System and Ansatz
