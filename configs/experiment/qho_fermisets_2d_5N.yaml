@@ -16,7 +16,7 @@ ansatz:
 trainer:
   vmc_iters: 1000
   lr: 0.05
-  n_samples: 8192
+  n_samples: 3072
   diag_shift: 0.02 # imroves stability but slows down convergence
   validation: true
   optmizer: momentum

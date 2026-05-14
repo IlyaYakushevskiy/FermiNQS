@@ -9,18 +9,22 @@ ansatz:
   model: fermi_sets
   hidden_units : 64
   #hydra uses null for "None"
-  pretrained_path: null
+  pretrained_path: null #DONT FORGET TO REFRESH BACK ON A NEW SWEEP 
   out_units: 10
 
 
 trainer:
   vmc_iters: 1500
-  lr: 0.02
-  n_samples: 6144
-  diag_shift: 0.08 # imroves stability but slows down convergence
+  lr: 0.01
+  n_samples: 4096
+  diag_shift: 0.01 # less if using pseudounverse 
   validation: true
-  optmizer: momentum
+  optimizer: momentum
   chunk_size: 1024
+  lr_decay_rate: 0.8
+  lr_decay_steps: 100 #every 100th step 
+  pinv_rtol: 1e-9
+  pinv_atol: 1e-12
 
 sampler: 
   sigma: 0.1

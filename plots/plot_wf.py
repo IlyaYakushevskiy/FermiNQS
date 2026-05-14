@@ -34,7 +34,7 @@ def nu_antisymmetric(x, dim, N):
 
 def plot_wf ( plot_name : str, plot_path : str, plot_title : str, vstate : nk.vqs.MCState, system : System ): 
 
-    
+    n_dots = system.N -1 
     x = np.linspace(-3.0, 3.0, 100)
     y = np.linspace(-3.5, 3.0, 100)
     X, Y = np.meshgrid(x, y)
@@ -43,28 +43,13 @@ def plot_wf ( plot_name : str, plot_path : str, plot_title : str, vstate : nk.vq
     
     R = 1.0
 
-
-    angles = jnp.array([jnp.pi / 2 + 2 * jnp.pi * k / 3 for k in range(3)])
-    pentagon_coords = jnp.stack([R * jnp.cos(angles), R * jnp.sin(angles)], axis=-1)
+    angles = jnp.array([jnp.pi / 2 + 2 * jnp.pi * k / n_dots  for k in range(n_dots)])
+    ngon_coords = jnp.stack([R * jnp.cos(angles), R * jnp.sin(angles)], axis=-1)
 
     fixed_coords = jnp.vstack([
         jnp.array([[0.0, 0.0]]),  
-        pentagon_coords           # Particles 1-5 (Fixed)
+        ngon_coords           # fixed particles 
     ])
-
-# For the flipped coordinates, swap Particle 1 and Particle 2
-# Note: In JAX, arrays are immutable, so we use the .at[].set() syntax
-
-    # fixed_coords = jnp.array([
-    #     [0.0, 0.0],   # Particle 0 (Active, to be overwritten)
-    #     [-1.0, 1.0],  # Particle 1 (Fixed)
-    #     [-1.0, -1.0], # Particle 2 (Fixed)
-    #     [1.0, -1.0],  # Particle 3 (Fixed)
-    #     [1.0, 1.0],   # Particle 4 (Fixed)
-    #     [0.0, 0.0]    # Particle 5 (Fixed)
-    # ])
-
-
 
     full_configs = jnp.tile(fixed_coords, (batch_size, 1, 1)) # Shape: (10000, 5, 2)
     full_configs = full_configs.at[:, 0, :].set(grid_2d) 

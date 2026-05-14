@@ -7,9 +7,9 @@ system:
 
 ansatz:
   model: fermi_sets
-  hidden_units : 128 #try massive 
+  hidden_units : 512 
   #hydra uses null for "None"
-  pretrained_path: /home/ilya/FermiNQS/outputs/2026-05-11/20-05-40/checkpoints/step_350.mpack
+  pretrained_path: null
   out_units: 20
 
 
