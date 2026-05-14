@@ -155,7 +155,10 @@ def main(cfg : DictConfig):
         validation= cfg.trainer.validation, 
         run_name = run_name,
         system = system,
-        lr_decay_rate = cfg.trainer.lr_decay_rate
+        lr_decay_rate = cfg.trainer.lr_decay_rate,
+        lr_decay_steps = cfg.trainer.lr_decay_steps,
+        pinv_rtol = cfg.trainer.pinv_rtol,
+        pinv_atol = cfg.trainer.pinv_atol
     )
     
     trainer()

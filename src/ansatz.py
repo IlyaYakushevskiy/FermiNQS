@@ -38,10 +38,10 @@ class FermiSets(nnx.Module):
         self.rho_dense1 = nnx.Linear(in_features=hidden_units, out_features=hidden_units, rngs=rngs)
 
         ### Psi layer, combining symmetric and antisymmetric features
-        self.Psi_dense1 = nnx.Linear(in_features=hidden_units+ 2 , out_features=(hidden_units+2)*2, rngs=rngs) # +1 for Re{} and Im{} of the Log(eta)
+        self.Psi_dense1 = nnx.Linear(in_features= hidden_units+ 2 , out_features=(hidden_units+2)*2, rngs=rngs) # +1 for Re{} and Im{} of the Log(eta)
         #self.Psi_dense2 = nnx.Linear(in_features=(hidden_units+ 2)*2 , out_features=(hidden_units+ 2)*2, rngs=rngs)
         #extra layer when not using SR 
-        self.Psi_dense_extra = nnx.Linear(in_features=(hidden_units+2)*2 , out_features=(hidden_units+2)*2, rngs=rngs)
+        #self.Psi_dense_extra = nnx.Linear(in_features=(hidden_units+2)*2 , out_features=(hidden_units+2)*2, rngs=rngs)
         self.Psi_dense2 = nnx.Linear(in_features=(hidden_units+ 2)*2 , out_features=out_units, rngs=rngs)
 
 
@@ -84,7 +84,7 @@ class FermiSets(nnx.Module):
                 diff = z[:, idx_i] - z[:, idx_j]
                 diff_sq = jnp.square(jnp.abs(diff))
                     
-                a = 1.0 
+                a = 1.0
                 
                 r_test = diff / jnp.sqrt(diff_sq + a**2)
                 
@@ -144,8 +144,8 @@ class FermiSets(nnx.Module):
         logPsi = self.Psi_dense1(log_feat_concat)
         logPsi = nnx.gelu(logPsi)
 
-        logPsi = self.Psi_dense_extra(logPsi)
-        logPsi = nnx.gelu(logPsi)
+        # logPsi = self.Psi_dense_extra(logPsi)
+        # logPsi = nnx.gelu(logPsi)
 
         logPsi = self.Psi_dense2(logPsi) 
      

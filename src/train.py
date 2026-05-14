@@ -36,7 +36,11 @@ class Trainer:
         seed: int = 42,
         momentum_beta: float = 0.9,
         optimizer: str = "sgd",
-        validation: bool = False
+        validation: bool = False, 
+        pinv_rtol: float =  1e-14, 
+        pinv_atol: float = 1e-14,
+        lr_decay_steps: int = 100
+
     ):
         self.sampler = sampler
         self.lr = lr
@@ -59,6 +63,9 @@ class Trainer:
         self.system = system
         self.chunk_size = chunk_size
         self.lr_decay_rate = lr_decay_rate
+        self.pinv_rtol = pinv_rtol
+        self.pinv_atol = pinv_atol
+        self.lr_decay_steps = lr_decay_steps
         
     def validation_callback(self, step: int , log_data : dict, driver : nk.driver.AbstractVariationalDriver) -> bool: 
         # E.g., extracts "outputs/2026-04-27/17-17-34"
@@ -118,16 +125,32 @@ class Trainer:
             with open(self.pretrained_path, "rb") as file:
                 vstate.variables = flax.serialization.from_bytes(vstate.variables, file.read())
 
+        #preburning
+        # lr_schedule = optax.join_schedules(
+        #     schedules=[
+        #         optax.constant_schedule(self.lr),
+        #         optax.exponential_decay(
+        #             init_value=self.lr, 
+        #             transition_steps=self.vmc_iters // 150, 
+        #             decay_rate=self.lr_decay_rate                    
+        #         )
+        #     ],
+        #     boundaries=[0]
+        # )
+
         lr_schedule = optax.exponential_decay(
             init_value=self.lr, 
-            transition_steps=self.vmc_iters // 10, # e.g., drop LR every 10% of total iterations
+            transition_steps=self.vmc_iters // self.lr_decay_steps, # e.g., drop LR every 10% of total iterations
             decay_rate= self.lr_decay_rate                    
         )
-        
+
+
         if self.optimizer == "sgd":
             optimizer = nk.optimizer.Sgd(learning_rate=self.lr)
         elif self.optimizer == "momentum":
-            optimizer = nk.optimizer.Momentum(learning_rate=self.lr, beta=self.momentum_beta)
+            optimizer = nk.optimizer.Momentum(learning_rate=lr_schedule, beta=self.momentum_beta)
+            self.log.info("Using following learning rate schedule: ", lr_schedule )
+
         elif self.optimizer == "adam":
             self.log.info("Starting with Adam optimiser")
             optimizer = optax.chain(
@@ -150,9 +173,11 @@ class Trainer:
                 hamiltonian= self.hamiltonian,
                 variational_state = vstate,
                 optimizer= optimizer,
-                diag_shift=self.diag_shift,                           
+                diag_shift=self.diag_shift,
+                linear_solver=nk.optimizer.solver.pinv_smooth( rtol = self.pinv_rtol, rtol_smooth = self.pinv_rtol ), ##default values are rtol: float = 1e-14, rtol_smooth: float = 1e-14,
+                use_ntk=True, #uses kernel trick (min SR )                        
                 mode="complex",                    
-                chunk_size_bwd=1024
+                chunk_size_bwd= self.chunk_size
             )
         # driver expects callbacks of form callback: CallbackT | Iterable[CallbackT] = lambda *x: True,
 
