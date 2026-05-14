@@ -1,0 +1,33 @@
+#!/bin/bash
+#SBATCH --job-name="qho_fermi"
+#SBATCH --output="jobs/qho_%j.log"
+#SBATCH --time=12:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G                  
+#SBATCH --partition=standard
+#SBATCH --gpus=A100:1      
+#SBATCH --account=szabo.physik.uzh
+               
+module load miniforge3/25.3.0-3
+module load cuda/12.6.3
+module load cudnn/9.8.0.87-12
+module load a100  
+
+cd /home/iyakus/scratch/FermiNQS
+source activate ferminqs
+
+
+##TEMPORARY 
+export PYTHONNOUSERSITE=1
+
+# 5. Purge old versions and install the strict CUDA 12 backend
+python3 -m pip uninstall jax jaxlib netket -y
+python3 -m pip cache purge
+python3 -m pip install -U "jax[cuda12]"
+python3 -m pip install netket
+##TEMPORARY  finish
+
+
+python3 main.py +experiment=qho_fermisets_2d_4N_A100

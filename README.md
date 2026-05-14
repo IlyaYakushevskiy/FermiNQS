@@ -16,3 +16,11 @@ python main.py +experiment=qho_bosons_gaussian
 ```
 to tweak hyper-parameters one should navigate to configs/experiment/ and either set up a new config (it just over-rides deafult paramaters selectively) or modify existing (e.g. qho_bosons_gaussian.yaml) 
 
+
+On scince cluster: 
+```
+module load miniforge3/25.3.0-3
+mamba create -p /home/iyakus/scratch/FermiNQS/.conda_env python=3.12 pip -y
+source activate /home/iyakus/scratch/FermiNQS/.conda_env
+pip install -r requirements.txt
+```

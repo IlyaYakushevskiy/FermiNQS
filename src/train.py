@@ -149,7 +149,7 @@ class Trainer:
             optimizer = nk.optimizer.Sgd(learning_rate=self.lr)
         elif self.optimizer == "momentum":
             optimizer = nk.optimizer.Momentum(learning_rate=lr_schedule, beta=self.momentum_beta)
-            self.log.info("Using following learning rate schedule: ", lr_schedule )
+            self.log.info(f"Using following learning rate schedule: {lr_schedule}")
 
         elif self.optimizer == "adam":
             self.log.info("Starting with Adam optimiser")

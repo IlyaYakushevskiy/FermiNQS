@@ -1,0 +1,32 @@
+# @package _global_
+seed: 42
+system:
+  N: 4
+  dim: 2
+  potential: qho_no_inter
+
+ansatz:
+  model: fermi_sets
+  hidden_units : 128
+  #hydra uses null for "None"
+  pretrained_path: null #DONT FORGET TO REFRESH BACK ON A NEW SWEEP 
+  out_units: 20
+
+
+trainer:
+  vmc_iters: 1500
+  lr: 0.02
+  n_samples: 8192
+  diag_shift: 0.01 # less if using pseudounverse 
+  validation: true
+  optimizer: momentum
+  chunk_size: 1024
+  lr_decay_rate: 0.8
+  lr_decay_steps: 100 #every 100th step 
+  pinv_rtol: 1e-12
+  pinv_atol: 1e-14
+
+sampler: 
+  sigma: 0.1
+  n_chains: 1024
+  sweep_size: 32 
