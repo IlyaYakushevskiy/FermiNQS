@@ -140,13 +140,13 @@ class Trainer:
 
         lr_schedule = optax.exponential_decay(
             init_value=self.lr, 
-            transition_steps=self.vmc_iters // self.lr_decay_steps, # e.g., drop LR every 10% of total iterations
+            transition_steps = self.lr_decay_steps, # e.g., drop LR every 10% of total iterations
             decay_rate= self.lr_decay_rate                    
         )
 
 
         if self.optimizer == "sgd":
-            optimizer = nk.optimizer.Sgd(learning_rate=self.lr)
+            optimizer = nk.optimizer.Sgd(learning_rate=lr_schedule)
         elif self.optimizer == "momentum":
             optimizer = nk.optimizer.Momentum(learning_rate=lr_schedule, beta=self.momentum_beta)
             self.log.info(f"Using following learning rate schedule: {lr_schedule}")
@@ -175,6 +175,7 @@ class Trainer:
                 optimizer= optimizer,
                 diag_shift=self.diag_shift,
                 linear_solver=nk.optimizer.solver.pinv_smooth( rtol = self.pinv_rtol, rtol_smooth = self.pinv_rtol ), ##default values are rtol: float = 1e-14, rtol_smooth: float = 1e-14,
+                #linear_solver= nk.optimizer.solver.cholesky_with_fallback( rtol = self.pinv_rtol, rtol_smooth = self.pinv_rtol ),
                 use_ntk=True, #uses kernel trick (min SR )                        
                 mode="complex",                    
                 chunk_size_bwd= self.chunk_size

@@ -12,22 +12,10 @@
                
 module load miniforge3/25.3.0-3
 module load cuda/12.6.3
-module load cudnn/9.8.0.87-12
+
 module load a100  
 
 cd /home/iyakus/scratch/FermiNQS
-source activate ferminqs
-
-
-##TEMPORARY 
-export PYTHONNOUSERSITE=1
-
-# 5. Purge old versions and install the strict CUDA 12 backend
-python3 -m pip uninstall jax jaxlib netket -y
-python3 -m pip cache purge
-python3 -m pip install -U "jax[cuda12]"
-python3 -m pip install netket
-##TEMPORARY  finish
-
+source activate /home/iyakus/scratch/FermiNQS/.conda_env
 
 python3 main.py +experiment=qho_fermisets_2d_4N_A100

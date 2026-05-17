@@ -1,0 +1,25 @@
+# 1. Grab an interactive node
+srun --partition=standard --gpus=A100:1 --account=szabo.physik.uzh --pty bash
+
+# 2. Load the modules (Notice the updated CUDA 12.9.1)
+module load miniforge3/25.3.0-3
+module load cuda/12.9.1
+module load cudnn/9.8.0.87-12
+module load a100
+
+# 3. Activate the explicit physical prefix (NOT the name)
+source activate /home/iyakus/scratch/FermiNQS/.conda_env
+
+# 4. Strict Isolation
+export PYTHONNOUSERSITE=1
+
+# 5. Execute the clean installation
+python3 -m pip uninstall jax jaxlib netket hydra-core -y
+python3 -m pip cache purge
+python3 -m pip install -U "jax[cuda12]"
+python3 -m pip install netket hydra-core wandb
+
+# 6. Verify (This should now print [cuda(id=0)])
+python3 -c "import jax; print('JAX devices:', jax.devices())"
+
+exit
