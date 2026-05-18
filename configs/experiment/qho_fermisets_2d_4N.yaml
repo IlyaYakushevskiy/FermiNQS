@@ -9,22 +9,23 @@ ansatz:
   model: fermi_sets
   hidden_units : 64
   #hydra uses null for "None"
-  pretrained_path: null #DONT FORGET TO REFRESH BACK ON A NEW SWEEP 
+  pretrained_path: /home/ilya/FermiNQS/outputs/2026-05-05/19-48-09/checkpoints/step_950.mpack #DONT FORGET TO REFRESH BACK ON A NEW SWEEP 
   out_units: 10
 
-
+  ##NEXT STEP : TRY TO billinear regularisation 
 trainer:
   vmc_iters: 1500
-  lr: 0.01
+  lr: 0.02
   n_samples: 4096
-  diag_shift: 0.01 # less if using pseudounverse 
+  diag_shift: 0.08 # less if using pseudounverse 
   validation: true
-  optimizer: momentum
+  optimizer: sgd
+  momentum_beta: 0.95
   chunk_size: 1024
-  lr_decay_rate: 0.8
+  lr_decay_rate: 0.95
   lr_decay_steps: 100 #every 100th step 
-  pinv_rtol: 1e-9
-  pinv_atol: 1e-12
+  pinv_rtol: 1e-12
+  pinv_atol: 1e-14
 
 sampler: 
   sigma: 0.1

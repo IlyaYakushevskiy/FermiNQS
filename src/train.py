@@ -8,7 +8,9 @@ import wandb
 from plots.plot_wf import plot_wf
 from src.system import System
 import jax.scipy.sparse.linalg as jsp_linalg
+import jax
 from functools import partial
+import jax.numpy as jnp
 
 #for Adam
 import optax 
@@ -162,6 +164,27 @@ class Trainer:
 
         #Quick experiment, change for adam 
 
+        def make_safe_solver(base_solver, max_bilinear_form=1000.0):
+            """
+            Wraps a NetKet linear solver. If the SR update's bilinear form 
+            exceeds `max_bilinear_form`, the update is zeroed out.
+            """
+            def safe_solver(A, b):
+                x, info = base_solver(A, b)
+                
+                # 2. compute the bilinear form <x | S | x> which equals <x | b>
+                bilinear_form = jnp.real(nk.jax.tree_dot(x, b))
+                jax.debug.print("bilinear_form is {b}", b=bilinear_form)
+                
+                blow_up = bilinear_form > max_bilinear_form
+                
+                def _zero_out_if_blown(x_leaf):
+                    return jnp.where(blow_up, jnp.zeros_like(x_leaf), x_leaf)
+                x_safe = jax.tree_util.tree_map(_zero_out_if_blown, x)
+                return x_safe, info
+                
+            return safe_solver
+
         if self.optimizer == "adam":
             gs_driver = nk.driver.VMC(
             hamiltonian=self.hamiltonian,
@@ -169,12 +192,26 @@ class Trainer:
             optimizer=optimizer,
         )
         else: 
+
+
+            # base_solver = nk.optimizer.solver.pinv_smooth(
+            #     rtol=self.pinv_rtol, 
+            #     rtol_smooth=self.pinv_rtol
+            # )
+
+            base_solver = nk.optimizer.solver.cholesky_with_fallback( rtol = self.pinv_rtol, rtol_smooth = self.pinv_rtol )
+
+
+
+            safe_solver = make_safe_solver(base_solver, max_bilinear_form=900.0)
+
             gs_driver = nk.driver.VMC_SR(
                 hamiltonian= self.hamiltonian,
                 variational_state = vstate,
                 optimizer= optimizer,
                 diag_shift=self.diag_shift,
-                linear_solver=nk.optimizer.solver.pinv_smooth( rtol = self.pinv_rtol, rtol_smooth = self.pinv_rtol ), ##default values are rtol: float = 1e-14, rtol_smooth: float = 1e-14,
+                #linear_solver=nk.optimizer.solver.pinv_smooth( rtol = self.pinv_rtol, rtol_smooth = self.pinv_rtol ), ##default values are rtol: float = 1e-14, rtol_smooth: float = 1e-14,
+                linear_solver = safe_solver, 
                 #linear_solver= nk.optimizer.solver.cholesky_with_fallback( rtol = self.pinv_rtol, rtol_smooth = self.pinv_rtol ),
                 use_ntk=True, #uses kernel trick (min SR )                        
                 mode="complex",                    
