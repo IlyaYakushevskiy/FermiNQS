@@ -7,9 +7,12 @@ import wandb
 import itertools
 
 import jax
+from netket.utils import struct
+import jax.numpy as jnp
 import netket as nk
 from flax import nnx 
 import logging
+from netket.sampler.rules import MetropolisRule # TODO create file sampler 
 
 
 from src.system import System
@@ -38,11 +41,60 @@ def exact_qho_gs_energy(N: int, dim: int, statistics: str = "fermion") -> float:
     else:
         raise ValueError(f"Unknown statistics: {statistics}")
 
+# TODO move into separate file 
+class SamplerExchangeRule(MetropolisRule):
+    """
+    A custom rule for spinless fermions: interweaves Gaussian drift 
+    with uniform particle exchanges across the entire system.
+    """
+
+    sigma: float
+    exchange_prob: float
+    n_particles: int = struct.field(pytree_node=False)
+    n_dim: int = struct.field(pytree_node=False)
+
+    
+    def __init__(self, sigma: float, exchange_prob: float, n_particles: int, n_dim: int): 
+        self.sigma = sigma 
+        self.exchange_prob = exchange_prob 
+        self.n_particles = n_particles
+        self.n_dim = n_dim
+
+    def transition(self, sampler, machine, parameters, state, key, r):
+        n_chains = r.shape[0]
+        key_action, key_gauss, key_i, key_j = jax.random.split(key, 4)
+        
+        # decide operation (True = Exchange, False = Gaussian)
+        do_exchange = jax.random.bernoulli(key_action, p=self.exchange_prob, shape=(n_chains, 1))
+        
+        # PROPOSAL A: Gaussian Drift 
+        r_gaussian = r + self.sigma * jax.random.normal(key_gauss, shape=r.shape)
+        
+        # PROPOSAL B: Universal Exchange 
+        r_reshaped = r.reshape(n_chains, self.n_particles, self.n_dim)
+        
+        # sample any two indices in the system. 
+        idx_i = jax.random.randint(key_i, shape=(n_chains,), minval=0, maxval=self.n_particles)
+        idx_j = jax.random.randint(key_j, shape=(n_chains,), minval=0, maxval=self.n_particles)
+        
+        # extract the particles
+        particle_i = r_reshaped[jnp.arange(n_chains), idx_i, :]
+        particle_j = r_reshaped[jnp.arange(n_chains), idx_j, :]
+        
+
+        r_swapped = r_reshaped.at[jnp.arange(n_chains), idx_i, :].set(particle_j)
+        r_swapped = r_swapped.at[jnp.arange(n_chains), idx_j, :].set(particle_i)
+        #flatten
+        r_exchange = r_swapped.reshape(n_chains, self.n_particles * self.n_dim)
+        
+        r_proposed = jnp.where(do_exchange, r_exchange, r_gaussian)
+        log_prob_correction = jnp.zeros(n_chains)
+        
+        return r_proposed, log_prob_correction
+    
 
 @hydra.main(version_base=None, config_path="configs", config_name="train")
 def main(cfg : DictConfig): 
-
-    
 
     hydra_cfg = HydraConfig.get()
     current_out_dir = hydra_cfg.runtime.output_dir
@@ -128,11 +180,25 @@ def main(cfg : DictConfig):
             N = cfg.system.N
         )
 
+    
+    ##TEMP 
+    custom_rule = SamplerExchangeRule(
+        sigma=cfg.sampler.sigma,
+        exchange_prob=0.1,  # 10% chance to attempt a coordinate swap
+        n_particles=system.N, 
+        n_dim = 2
+    )
 
-    sampler = nk.sampler.MetropolisGaussian(system.hi, 
-                                            sigma=cfg.sampler.sigma,
-                                            n_chains=cfg.sampler.n_chains,
-                                            sweep_size=cfg.sampler.sweep_size) ##to make variables 
+    sampler = nk.sampler.MetropolisSampler(
+        hilbert=system.hi,
+        rule=custom_rule,
+        n_chains=cfg.sampler.n_chains,
+        sweep_size=cfg.sampler.sweep_size
+    )
+    # sampler = nk.sampler.MetropolisGaussian(system.hi, 
+    #                                         sigma=cfg.sampler.sigma,
+    #                                         n_chains=cfg.sampler.n_chains,
+    #                                         sweep_size=cfg.sampler.sweep_size) ##to make variables 
 
     
     trainer = Trainer(
