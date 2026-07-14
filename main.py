@@ -24,6 +24,33 @@ log = logging.getLogger(__name__)
 
 #jax.config.update("jax_debug_nans", True)
 
+# guard against silently-ignored config typos (e.g. the historical 'optmizer' key,
+# which made runs fall back to the default sgd without any warning)
+ALLOWED_CFG_KEYS = {
+    "system": {"N", "dim", "mass", "potential"},
+    "ansatz": {"model", "pretrained_path", "hidden_units", "out_units", "pool_fct_name", "L", "lz_proj_K"},
+    "sampler": {"sigma", "n_chains", "sweep_size", "exchange_prob", "tune_sigma"},
+    "trainer": {
+        "lr", "vmc_iters", "n_samples", "diag_shift", "n_discard_per_chain",
+        "momentum_beta", "optimizer", "validation", "chunk_size",
+        "lr_decay_rate", "lr_decay_steps", "pinv_rtol", "pinv_atol",
+        "auto_rollback", "rollback_margin", "max_retries",
+    },
+}
+
+
+def validate_config(cfg: DictConfig):
+    for section, allowed in ALLOWED_CFG_KEYS.items():
+        if section not in cfg:
+            continue
+        unknown = set(cfg[section].keys()) - allowed
+        if unknown:
+            raise ValueError(
+                f"Unknown key(s) {sorted(unknown)} in cfg.{section} — typo? "
+                f"Allowed: {sorted(allowed)}"
+            )
+
+
 def exact_qho_gs_energy(N: int, dim: int, statistics: str = "fermion") -> float:
 
     base_energy = 0.5 * dim
@@ -73,9 +100,10 @@ class SamplerExchangeRule(MetropolisRule):
         # PROPOSAL B: Universal Exchange 
         r_reshaped = r.reshape(n_chains, self.n_particles, self.n_dim)
         
-        # sample any two indices in the system. 
+        # sample two DISTINCT particle indices (i == j would waste the move on an identity swap)
         idx_i = jax.random.randint(key_i, shape=(n_chains,), minval=0, maxval=self.n_particles)
-        idx_j = jax.random.randint(key_j, shape=(n_chains,), minval=0, maxval=self.n_particles)
+        offset = jax.random.randint(key_j, shape=(n_chains,), minval=1, maxval=self.n_particles)
+        idx_j = (idx_i + offset) % self.n_particles
         
         # extract the particles
         particle_i = r_reshaped[jnp.arange(n_chains), idx_i, :]
@@ -96,9 +124,11 @@ class SamplerExchangeRule(MetropolisRule):
 @hydra.main(version_base=None, config_path="configs", config_name="train")
 def main(cfg : DictConfig): 
 
+    validate_config(cfg)
+
     hydra_cfg = HydraConfig.get()
     current_out_dir = hydra_cfg.runtime.output_dir
-    time_stamp = os.path.basename(current_out_dir) 
+    time_stamp = os.path.basename(current_out_dir)
     run_name = f"{cfg.system.potential}_{cfg.ansatz.model}_N{cfg.system.N}_{time_stamp}"
     orig_cwd = get_original_cwd()
 
@@ -153,12 +183,13 @@ def main(cfg : DictConfig):
         ansatz = FermiSets(
             dim= cfg.system.dim,
             rngs= nnx.Rngs(42),
-            N = cfg.system.N, 
+            N = cfg.system.N,
             hidden_units= fermi_hidden_units,
             out_units = fermi_out_units,
             pool_fct_name=fermi_pool_fct_name,
             L=fermi_L,
-            log= log
+            log= log,
+            lz_proj_K = cfg.ansatz.get("lz_proj_K", 0)
         )
 
         #not very usefull, delete mb 
@@ -181,12 +212,11 @@ def main(cfg : DictConfig):
         )
 
     
-    ##TEMP 
     custom_rule = SamplerExchangeRule(
         sigma=cfg.sampler.sigma,
-        exchange_prob=0.1,  # 10% chance to attempt a coordinate swap
-        n_particles=system.N, 
-        n_dim = 2
+        exchange_prob=cfg.sampler.get("exchange_prob", 0.1),
+        n_particles=system.N,
+        n_dim=cfg.system.dim
     )
 
     sampler = nk.sampler.MetropolisSampler(
@@ -224,7 +254,11 @@ def main(cfg : DictConfig):
         lr_decay_rate = cfg.trainer.lr_decay_rate,
         lr_decay_steps = cfg.trainer.lr_decay_steps,
         pinv_rtol = cfg.trainer.pinv_rtol,
-        pinv_atol = cfg.trainer.pinv_atol
+        pinv_atol = cfg.trainer.pinv_atol,
+        tune_sigma = cfg.sampler.get("tune_sigma", True),
+        auto_rollback = cfg.trainer.get("auto_rollback", True),
+        rollback_margin = cfg.trainer.get("rollback_margin", 2.0),
+        max_retries = cfg.trainer.get("max_retries", 2)
     )
     
     trainer()

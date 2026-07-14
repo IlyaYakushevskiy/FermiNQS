@@ -1,0 +1,39 @@
+# @package _global_
+# BENCHMARK, L_z-projected variant — the answer-free from-scratch attempt (RESEARCH_LOG 2026-07-14).
+# Same as qho_fermisets_2d_3N_bench but the ansatz is projected onto L_z = 0 (mod 6):
+# the entire holomorphic lazy family (trap at E=6 with L_z=3, eta*e1 at E=7 with L_z=4)
+# becomes unrepresentable; sector spectrum is GS 5.0, next state 7.0, leakage >= 9.
+# NO pretraining — this must work from scratch or the projection idea is dead.
+seed: 42
+use_wnb: False
+
+system:
+  N: 3
+  dim: 2
+  potential: qho_no_inter
+
+ansatz:
+  model: fermi_sets
+  hidden_units: 64
+  out_units: 10
+  pretrained_path: null
+  lz_proj_K: 6          # 6 rotations: kills |L_z| in 1..5; costs ~6x per evaluation
+
+trainer:
+  vmc_iters: 800
+  lr: 0.01
+  n_samples: 4096
+  diag_shift: 0.05
+  validation: true
+  optimizer: momentum
+  momentum_beta: 0.9
+  chunk_size: 1024
+  lr_decay_rate: 0.95
+  lr_decay_steps: 100
+  pinv_rtol: 1e-12
+  pinv_atol: 1e-14
+
+sampler:
+  sigma: 0.1
+  n_chains: 512
+  sweep_size: 32

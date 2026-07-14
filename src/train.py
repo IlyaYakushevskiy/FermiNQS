@@ -1,9 +1,11 @@
+import glob
 import json
 import logging
 import os
 
 import flax
 import netket as nk
+import numpy as np
 import wandb
 from plots.plot_wf import plot_wf
 from src.system import System
@@ -13,7 +15,56 @@ from functools import partial
 import jax.numpy as jnp
 
 #for Adam
-import optax 
+import optax
+
+
+class BlowupGuard:
+    """
+    Driver callback that stops the run when the energy diverges (NaN or a jump
+    far above the best value seen), so the Trainer can roll back to the last
+    good checkpoint with a reduced learning rate. Tracks the newest checkpoint
+    file that was written while the energy was still sane.
+    """
+
+    def __init__(self, log: logging.Logger, ckpt_dir: str | None, margin: float = 2.0):
+        self.log = log
+        self.ckpt_dir = ckpt_dir
+        self.margin = margin
+        self.best = None
+        self.tripped = False
+        self.last_good_ckpt = None
+
+    def _newest_ckpt(self):
+        if self.ckpt_dir is None:
+            return None
+        files = glob.glob(os.path.join(self.ckpt_dir, "step_*.mpack"))
+        if not files:
+            return None
+        return max(files, key=lambda p: int(p.split("_")[-1].split(".")[0]))
+
+    def __call__(self, step: int, log_data: dict, driver) -> bool:
+        stats = log_data.get("Energy", None)
+        if stats is None:
+            return True
+        mean = float(np.real(stats.mean)) if hasattr(stats, "mean") else float(np.real(stats))
+        var = float(np.real(getattr(stats, "variance", 0.0)))
+
+        threshold = None
+        if self.best is not None:
+            threshold = self.best + max(self.margin, 5.0 * np.sqrt(max(var, 0.0)))
+
+        if not np.isfinite(mean) or (threshold is not None and mean > threshold):
+            self.tripped = True
+            self.log.error(
+                f"blow-up guard tripped at step {step}: E={mean}, best={self.best}, "
+                f"threshold={threshold}"
+            )
+            return False
+
+        if self.best is None or mean < self.best:
+            self.best = mean
+        self.last_good_ckpt = self._newest_ckpt()
+        return True
 
 
 class Trainer:
@@ -39,9 +90,13 @@ class Trainer:
         momentum_beta: float = 0.9,
         optimizer: str = "sgd",
         validation: bool = False, 
-        pinv_rtol: float =  1e-14, 
+        pinv_rtol: float =  1e-14,
         pinv_atol: float = 1e-14,
-        lr_decay_steps: int = 100
+        lr_decay_steps: int = 100,
+        tune_sigma: bool = True,
+        auto_rollback: bool = True,
+        rollback_margin: float = 2.0,
+        max_retries: int = 2
 
     ):
         self.sampler = sampler
@@ -68,6 +123,10 @@ class Trainer:
         self.pinv_rtol = pinv_rtol
         self.pinv_atol = pinv_atol
         self.lr_decay_steps = lr_decay_steps
+        self.tune_sigma = tune_sigma
+        self.auto_rollback = auto_rollback
+        self.rollback_margin = rollback_margin
+        self.max_retries = max_retries
         
     def validation_callback(self, step: int , log_data : dict, driver : nk.driver.AbstractVariationalDriver) -> bool: 
         # E.g., extracts "outputs/2026-04-27/17-17-34"
@@ -98,7 +157,11 @@ class Trainer:
             val_energy_stats = val_state.expect(self.hamiltonian)
             
             self.log.info(f"Validation Energy: {val_energy_stats}")
-            log_data["Validation_Energy"] = val_energy_stats 
+            log_data["Validation_Energy"] = val_energy_stats
+
+            acc = getattr(driver.state.sampler_state, "acceptance", None)
+            if acc is not None:
+                self.log.info(f"training sampler acceptance: {float(acc):.3f}")
             #plotting
             # plot_path = os.path.join(working_dir, "plots") # no / needed 
             # os.makedirs(plot_path, exist_ok=True)
@@ -127,6 +190,86 @@ class Trainer:
             with open(self.pretrained_path, "rb") as file:
                 vstate.variables = flax.serialization.from_bytes(vstate.variables, file.read())
 
+        if self.tune_sigma:
+            self._tune_sampler_sigma(vstate)
+
+        ckpt_dir = None
+        if self.validation and self.log_path is not None:
+            ckpt_dir = os.path.join(os.path.dirname(self.log_path), "checkpoints")
+
+        current_lr = self.lr
+        attempt = 0
+        while True:
+            # optimizer/driver rebuilt on every attempt so momentum state resets after a rollback
+            gs_driver = self._build_driver(vstate, current_lr)
+
+            self.log.info("running driver and logging...")
+            loggers = [nk.logging.JsonLog("optimization_results", save_params=True)]
+            if wandb.run is not None and self.log_path is not None:
+                loggers.append(LiveWandbLogger(exact_gs_energy=self.exact_gs_energy))
+
+            guard = BlowupGuard(self.log, ckpt_dir, margin=self.rollback_margin)
+            callbacks = [guard]
+            if self.validation:
+                callbacks.append(self.validation_callback)
+
+            gs_driver.run(n_iter=self.vmc_iters, out=loggers, callback=callbacks)
+
+            if (
+                self.auto_rollback
+                and guard.tripped
+                and attempt < self.max_retries
+                and guard.last_good_ckpt is not None
+            ):
+                with open(guard.last_good_ckpt, "rb") as f:
+                    vstate.variables = flax.serialization.from_bytes(vstate.variables, f.read())
+                attempt += 1
+                current_lr *= 0.5
+                self.log.warning(
+                    f"rolled back to {guard.last_good_ckpt}; retry {attempt}/{self.max_retries} "
+                    f"with lr={current_lr}"
+                )
+                continue
+            if guard.tripped:
+                self.log.error("energy blew up and no rollback was possible; final state is not trustworthy")
+            break
+
+        self.eigenE = vstate.expect(self.hamiltonian)
+
+        energy_mean = self.eigenE.mean.real
+        mc_error = self.eigenE.error_of_mean
+
+        self.log.info(f"Optimized energy and relative error: {energy_mean} ± {mc_error}")
+
+    def _tune_sampler_sigma(self, vstate, target_low: float = 0.35,
+                            target_high: float = 0.6, max_rounds: int = 8):
+        """Multiplicatively adjust the drift sigma toward a healthy acceptance window."""
+        rule = getattr(vstate.sampler, "rule", None)
+        if rule is None or not hasattr(rule, "sigma"):
+            self.log.warning("sigma tuning skipped: sampler rule has no sigma")
+            return
+        sigma = float(rule.sigma)
+        for _ in range(max_rounds):
+            vstate.sample()
+            acc = getattr(vstate.sampler_state, "acceptance", None)
+            if acc is None:
+                self.log.warning("sigma tuning skipped: sampler exposes no acceptance")
+                return
+            acc = float(acc)
+            self.log.info(f"sigma tuning: sigma={sigma:.4f}, acceptance={acc:.3f}")
+            if target_low <= acc <= target_high:
+                break
+            factor = float(np.clip(acc / 0.5, 0.5, 2.0))
+            sigma = float(np.clip(sigma * factor, 1e-3, 3.0))
+            try:
+                vstate.sampler = vstate.sampler.replace(rule=rule.replace(sigma=sigma))
+                rule = vstate.sampler.rule
+            except (AttributeError, TypeError) as e:
+                self.log.warning(f"sigma tuning aborted, cannot replace sampler rule: {e}")
+                return
+        self.log.info(f"sampler sigma after tuning: {sigma:.4f}")
+
+    def _build_driver(self, vstate, lr):
         #preburning
         # lr_schedule = optax.join_schedules(
         #     schedules=[
@@ -141,9 +284,9 @@ class Trainer:
         # )
 
         lr_schedule = optax.exponential_decay(
-            init_value=self.lr, 
+            init_value=lr,
             transition_steps = self.lr_decay_steps, # e.g., drop LR every 10% of total iterations
-            decay_rate= self.lr_decay_rate                    
+            decay_rate= self.lr_decay_rate
         )
 
 
@@ -166,23 +309,25 @@ class Trainer:
 
         def make_safe_solver(base_solver, max_bilinear_form=1000.0):
             """
-            Wraps a NetKet linear solver. If the SR update's bilinear form 
-            exceeds `max_bilinear_form`, the update is zeroed out.
+            Wraps a NetKet linear solver with a trust region on the SR step:
+            the bilinear form <x|S|x> = <x|b> is the squared natural-gradient
+            norm of the update. If it exceeds `max_bilinear_form`, the step is
+            rescaled onto the trust-region boundary (direction preserved)
+            instead of being discarded.
             """
             def safe_solver(A, b):
                 x, info = base_solver(A, b)
-                
-                # 2. compute the bilinear form <x | S | x> which equals <x | b>
+
                 bilinear_form = jnp.real(nk.jax.tree_dot(x, b))
-                jax.debug.print("bilinear_form is {b}", b=bilinear_form)
-                
-                blow_up = bilinear_form > max_bilinear_form
-                
-                def _zero_out_if_blown(x_leaf):
-                    return jnp.where(blow_up, jnp.zeros_like(x_leaf), x_leaf)
-                x_safe = jax.tree_util.tree_map(_zero_out_if_blown, x)
+
+                scale = jnp.where(
+                    bilinear_form > max_bilinear_form,
+                    jnp.sqrt(max_bilinear_form / jnp.abs(bilinear_form)),
+                    1.0,
+                )
+                x_safe = jax.tree_util.tree_map(lambda leaf: scale * leaf, x)
                 return x_safe, info
-                
+
             return safe_solver
 
         if self.optimizer == "adam":
@@ -217,26 +362,7 @@ class Trainer:
                 mode="complex",                    
                 chunk_size_bwd= self.chunk_size
             )
-        # driver expects callbacks of form callback: CallbackT | Iterable[CallbackT] = lambda *x: True,
-
-        self.log.info("running driver and logging...")
-
-        loggers = [nk.logging.JsonLog("optimization_results", save_params=True)]
-
-        if wandb.run is not None and self.log_path is not None:
-            loggers.append(LiveWandbLogger( exact_gs_energy=self.exact_gs_energy))
-
-        if self.validation == True: 
-            gs_driver.run(n_iter=self.vmc_iters, out=loggers, callback= self.validation_callback)
-        else: 
-            gs_driver.run(n_iter=self.vmc_iters, out=loggers)
-
-        self.eigenE = vstate.expect(self.hamiltonian)
-
-        energy_mean = self.eigenE.mean.real
-        mc_error = self.eigenE.error_of_mean
-
-        self.log.info(f"Optimized energy and relative error: {energy_mean} ± {mc_error}")
+        return gs_driver
 
       
 

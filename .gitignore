@@ -3,6 +3,7 @@ __pycache__/
 *.py[codz]
 *$py.class
 .conda_env
+EXPERIMENTAL DATA
 
 
 playgound.iypnb

@@ -1,0 +1,36 @@
+# @package _global_
+# CANONICAL BENCHMARK — see CLAUDE.md "Benchmark experiment" before editing.
+# N=3 spinless fermions, 2D harmonic trap, closed shell -> non-degenerate GS, exact E = 5.0.
+# Sized for a single 8 GB consumer GPU (fp64). Always trains FROM SCRATCH (no pretrained_path).
+seed: 42
+use_wnb: False   # flip to True when sweeping with wandb; keep False for reproducible bug-hunt runs
+
+system:
+  N: 3
+  dim: 2
+  potential: qho_no_inter
+
+ansatz:
+  model: fermi_sets
+  hidden_units: 64
+  out_units: 10
+  pretrained_path: null   # benchmark MUST start from scratch — do not warm-start
+
+trainer:
+  vmc_iters: 1500
+  lr: 0.01
+  n_samples: 4096
+  diag_shift: 0.05
+  validation: true        # exercises checkpointing + independent-chain energy every 50 steps
+  optimizer: momentum     # NOTE: spelled 'optimizer' — the old 'optmizer' typo silently fell back to sgd
+  momentum_beta: 0.9
+  chunk_size: 1024
+  lr_decay_rate: 0.95
+  lr_decay_steps: 100
+  pinv_rtol: 1e-12
+  pinv_atol: 1e-14
+
+sampler:
+  sigma: 0.1
+  n_chains: 512
+  sweep_size: 32

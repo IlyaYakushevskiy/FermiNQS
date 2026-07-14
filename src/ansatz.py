@@ -15,14 +15,21 @@ class FermiSets(nnx.Module):
      (Fermions = Bosons + One).” doi:10.48550/arXiv.2510.11431.
     """
      
-    def __init__(self , dim: int , N: int, rngs: nnx.Rngs, log : logging.Logger,  pool_fct_name : str = None, L: float = None , hidden_units: int = 8, out_units: int = 10 ):
+    def __init__(self , dim: int , N: int, rngs: nnx.Rngs, log : logging.Logger,  pool_fct_name : str = None, L: float = None , hidden_units: int = 8, out_units: int = 10, lz_proj_K: int = 0 ):
 
-        self.dim = dim 
-        self.N = N 
+        self.dim = dim
+        self.N = N
         self.L = L
         self.hidden_units = hidden_units
         self.log = log
         self.out_units = out_units
+        # L_z-sector projection: average over lz_proj_K rotations, keeping only
+        # L_z = 0 (mod K) components. Kills the holomorphic trap family
+        # (eta * holomorphic-symmetric has L_z = N(N-1)/2 + d > 0) exactly.
+        # 0 or 1 disables. 2D only.
+        self.lz_proj_K = lz_proj_K
+        if lz_proj_K and lz_proj_K > 1 and dim != 2:
+            raise ValueError("lz_proj_K is only implemented for dim=2")
 
         #pbc ignored for now 
 
@@ -45,36 +52,25 @@ class FermiSets(nnx.Module):
         self.Psi_dense2 = nnx.Linear(in_features=(hidden_units+ 2)*2 , out_features=out_units, rngs=rngs)
 
 
-    def eta_antisymmetric(self, x): 
+    def eta_antisymmetric(self, x):
             x_reshaped = x.reshape(-1, self.N, self.dim)
             #x is (batch, N, dim)
-            if self.dim == 1: 
+            if self.dim == 1:
+                # regularized real Vandermonde, same construction as dim==2 below.
+                # NOTE: previously this returned log(prod diff) and __call__ negated the
+                # log — which is the reciprocal, not a sign flip — structurally breaking
+                # 1D antisymmetry (see RESEARCH_LOG.md 2026-07-14). Raw bounded product
+                # makes the -eta flip exact.
+                x1 = x_reshaped[:, :, 0]
+                idx_i, idx_j = jnp.tril_indices(self.N, k=-1)
+                diff = x1[:, idx_i] - x1[:, idx_j]
 
-                #N = x.shape[-1]
-                #using broadcasting, x[..., :, None] has shape (batch, N, 1) and x[..., None, :] (batch, 1, N), so diff_matrix has shape (batch, N, N)
-                #diff_matrix = x[..., :, None] - x[..., None, :]
-                #return jnp.sign(jnp.prod(jnp.diff(x, axis=1), axis=-1)) # sign of product of differences
-
-                #TODO the very naive approach, to be vectorised 
-             
-                batch_size = x_reshaped.shape[0]
-                y = jnp.zeros((batch_size, 1))
-
-                for i in range(self.N):
-                    r_i = x_reshaped[:, i, :]
-                    for j in range(i): 
-                        
-                        r_j = x_reshaped[:, j, :]
-
-                        #log this part instead ,then we're talking sums 
-                        diff = ( r_i - r_j) 
-                        log_diff = jnp.log(diff.astype(jnp.complex64))
-                        y = y + log_diff
-
-                y = y.squeeze() 
+                a = 1.0
+                r_test = diff / jnp.sqrt(diff**2 + a**2)
+                y = jnp.prod(r_test, axis=1)
                 return y
 
-            elif self.dim == 2: 
+            elif self.dim == 2:
 
                 batch_size = x_reshaped.shape[0]
 
@@ -161,10 +157,31 @@ class FermiSets(nnx.Module):
         return logPsi_comp
 
     def __call__(self, x : jax.Array):
+        if not self.lz_proj_K or self.lz_proj_K <= 1:
+            return self._logpsi_base(x)
+
+        # project onto L_z = 0 (mod K): psi_proj(x) = (1/K) sum_k psi(R(2 pi k / K) x).
+        # rotations commute with particle permutations, so antisymmetry is preserved.
+        import math
+        K = self.lz_proj_K
+        xr = x.reshape(-1, self.N, 2)
+        logs = []
+        for k in range(K):
+            th = 2.0 * math.pi * k / K
+            c, s = math.cos(th), math.sin(th)
+            xrot = jnp.stack(
+                [c * xr[..., 0] - s * xr[..., 1], s * xr[..., 0] + c * xr[..., 1]],
+                axis=-1,
+            )
+            logs.append(self._logpsi_base(xrot.reshape(x.shape)))
+        stacked = jnp.stack(logs, axis=-1)
+        return self.safe_complex_logsumexp(stacked) - jnp.log(K)
+
+    def _logpsi_base(self, x : jax.Array):
 
         eta = self.eta_antisymmetric(x)
-        log_psi0_plus = self.eval_psi0(x, eta) 
-        log_psi0_minus = self.eval_psi0(x, -eta) # eta + 1j * jnp.pi is a swap ( eta -> -eta) in complex space 
+        log_psi0_plus = self.eval_psi0(x, eta)
+        log_psi0_minus = self.eval_psi0(x, -eta) # eta is a raw bounded product in both dims, so -eta IS the exact exchange flip
         
         stacked_logs = jnp.stack([log_psi0_plus, log_psi0_minus], axis=-1)
         weights = jnp.array([0.5, -0.5])
