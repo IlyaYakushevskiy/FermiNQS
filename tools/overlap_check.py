@@ -81,6 +81,8 @@ def main():
                     help="must match the training config's ansatz.lz_proj_K")
     ap.add_argument("--omega-y", type=float, default=1.0,
                     help="anisotropic trap frequency; must match system.omega_y (1.0 = isotropic)")
+    ap.add_argument("--pair-hidden", type=int, default=0,
+                    help="must match the training config's ansatz.pair_hidden")
     args = ap.parse_args()
 
     wy = args.omega_y
@@ -90,7 +92,7 @@ def main():
         system = System(N=N, dim=DIM, mass=1.0, potential="qho_no_inter")
     model = FermiSets(dim=DIM, N=N, rngs=nnx.Rngs(42), log=logging.getLogger(),
                       hidden_units=args.hidden, out_units=args.out,
-                      lz_proj_K=args.lz_proj_K)
+                      lz_proj_K=args.lz_proj_K, pair_hidden=args.pair_hidden)
     sampler = nk.sampler.MetropolisGaussian(system.hi, sigma=0.35, n_chains=64, sweep_size=32)
     vstate = nk.vqs.MCState(sampler, model, n_samples=8192, seed=1, chunk_size=4096)
 

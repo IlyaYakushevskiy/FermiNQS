@@ -15,7 +15,7 @@ class FermiSets(nnx.Module):
      (Fermions = Bosons + One).” doi:10.48550/arXiv.2510.11431.
     """
      
-    def __init__(self , dim: int , N: int, rngs: nnx.Rngs, log : logging.Logger,  pool_fct_name : str = None, L: float = None , hidden_units: int = 8, out_units: int = 10, lz_proj_K: int = 0 ):
+    def __init__(self , dim: int , N: int, rngs: nnx.Rngs, log : logging.Logger,  pool_fct_name : str = None, L: float = None , hidden_units: int = 8, out_units: int = 10, lz_proj_K: int = 0, pair_hidden: int = 0 ):
 
         self.dim = dim
         self.N = N
@@ -23,6 +23,11 @@ class FermiSets(nnx.Module):
         self.hidden_units = hidden_units
         self.log = log
         self.out_units = out_units
+        # Pair-feature stream (RESEARCH_LOG 2026-07-15): Deep Sets over unordered pairs,
+        # exchange-even bounded features, sum-pooled into the symmetric embedding. Gives the
+        # Psi head linear access to sum_pairs [log(1+r^2) - log(r^2+eps)] = -log T (T = |eta|^2),
+        # the singular prefactor needed for triangle-area sign structures. 0 disables (old arch).
+        self.pair_hidden = pair_hidden
         # L_z-sector projection: average over lz_proj_K rotations, keeping only
         # L_z = 0 (mod K) components. Kills the holomorphic trap family
         # (eta * holomorphic-symmetric has L_z = N(N-1)/2 + d > 0) exactly.
@@ -44,12 +49,23 @@ class FermiSets(nnx.Module):
 
         self.rho_dense1 = nnx.Linear(in_features=hidden_units, out_features=hidden_units, rngs=rngs)
 
+        ### PAIR stream (optional)
+        if pair_hidden:
+            n_pair_feats = 5 if dim == 2 else 3
+            # live (default) init: the stream must participate in basin selection from step 0
+            # (zero-init gating parked the run in the 6.0 trap before the stream woke up).
+            # Stability comes from the BOUNDED features in pair_features, not from gating —
+            # unbounded features with this init blew up VMC at step 0 (2026-07-15 shakedown).
+            self.pair_dense1 = nnx.Linear(in_features=n_pair_feats, out_features=pair_hidden, rngs=rngs)
+            self.pair_dense2 = nnx.Linear(in_features=pair_hidden, out_features=pair_hidden, rngs=rngs)
+
         ### Psi layer, combining symmetric and antisymmetric features
-        self.Psi_dense1 = nnx.Linear(in_features= hidden_units+ 2 , out_features=(hidden_units+2)*2, rngs=rngs) # +1 for Re{} and Im{} of the Log(eta)
+        psi_in = hidden_units + pair_hidden + 2  # +2 for Re{} and Im{} of eta
+        self.Psi_dense1 = nnx.Linear(in_features= psi_in , out_features=psi_in*2, rngs=rngs)
         #self.Psi_dense2 = nnx.Linear(in_features=(hidden_units+ 2)*2 , out_features=(hidden_units+ 2)*2, rngs=rngs)
-        #extra layer when not using SR 
+        #extra layer when not using SR
         #self.Psi_dense_extra = nnx.Linear(in_features=(hidden_units+2)*2 , out_features=(hidden_units+2)*2, rngs=rngs)
-        self.Psi_dense2 = nnx.Linear(in_features=(hidden_units+ 2)*2 , out_features=out_units, rngs=rngs)
+        self.Psi_dense2 = nnx.Linear(in_features=psi_in*2 , out_features=out_units, rngs=rngs)
 
 
     def eta_antisymmetric(self, x):
@@ -118,9 +134,31 @@ class FermiSets(nnx.Module):
     
         return out
     
+    def pair_features(self, x_reshaped):
+        # exchange-EVEN features of unordered pairs: invariant under i<->j within a pair
+        # (all even in d -> -d), and sum-pooling makes the result permutation-symmetric,
+        # so antisymmetry keeps coming solely from the +-eta flip.
+        idx_i, idx_j = jnp.tril_indices(self.N, k=-1)
+        d = x_reshaped[:, idx_i, :] - x_reshaped[:, idx_j, :]  # (batch, n_pairs, dim)
+        r2 = jnp.sum(d**2, axis=-1)
+        eps = 1e-3
+        # all features BOUNDED on the sampled region (raw r^2/quadrupoles at random init
+        # produced |log psi| ~ 30 and sigma^2 ~ 1e2 at step 0 — instant blow-up):
+        # log(r^2+eps) is the load-bearing feature: -log T = sum [log(1+r^2) - log(r^2+eps)]
+        # is a linear readout of the pooled vector. Normalized quadrupoles keep orientation.
+        if self.dim == 2:
+            feats = [jnp.log1p(r2),
+                     (d[..., 0] ** 2 - d[..., 1] ** 2) / (1.0 + r2),
+                     2.0 * d[..., 0] * d[..., 1] / (1.0 + r2),
+                     jnp.log(r2 + eps),
+                     1.0 / (r2 + 1.0)]
+        else:
+            feats = [jnp.log1p(r2), jnp.log(r2 + eps), 1.0 / (r2 + 1.0)]
+        return jnp.stack(feats, axis=-1)
+
     def eval_psi0(self, x, eta):
         #x is (batch, N_particles, dim)
-        x_reshaped = x.reshape(-1, self.N, self.dim) #-1 inferes the batch size automatically 
+        x_reshaped = x.reshape(-1, self.N, self.dim) #-1 inferes the batch size automatically
 
         y = self.phi_dense1(x_reshaped)
         y = nnx.gelu(y)
@@ -129,6 +167,13 @@ class FermiSets(nnx.Module):
 
         y = self.rho_dense1(y)
         y = nnx.gelu(y)
+
+        if self.pair_hidden:
+            p = self.pair_dense1(self.pair_features(x_reshaped))
+            p = nnx.gelu(p)
+            p = self.pair_dense2(p)
+            p = jnp.sum(p, axis=1)  # symmetric pool over pairs
+            y = jnp.concatenate([y, p], axis=-1)
 
         
         log_eta_real = jnp.real(eta)[:, None]
@@ -177,7 +222,7 @@ class FermiSets(nnx.Module):
         stacked = jnp.stack(logs, axis=-1)
         return self.safe_complex_logsumexp(stacked) - jnp.log(K)
 
-    def _logpsi_base(self, x : jax.Array):
+    def _logpsi_base(self, x : jax.Array): #og forward pass without the L_z projection 
 
         eta = self.eta_antisymmetric(x)
         log_psi0_plus = self.eval_psi0(x, eta)

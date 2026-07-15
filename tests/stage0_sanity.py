@@ -129,6 +129,42 @@ xrot = jnp.stack([c * xr[..., 0] - s * xr[..., 1], s * xr[..., 0] + c * xr[..., 
 worst = float(jnp.max(jnp.abs(jnp.exp(modelp(xrot) - lpp) - 1.0)))
 check("proj: invariant under 2pi/6 rotation", worst < 1e-6, f"max |psi'/psi - 1| = {worst:.2e}")
 
+# --- 6d. pair-feature variant (pair_hidden > 0): symmetry must be untouched, collisions safe
+modelpf = FermiSets(dim=2, N=3, rngs=nnx.Rngs(42), log=log, hidden_units=64, out_units=10,
+                    pair_hidden=32)
+lppf = modelpf(x)
+check("pair: finite on random configs", bool(jnp.all(jnp.isfinite(lppf))))
+worst = 0.0
+for i in range(N):
+    for j in range(i):
+        xs = xr.at[:, [i, j], :].set(xr[:, [j, i], :]).reshape(-1, N * DIM)
+        ratio = jnp.exp(modelpf(xs) - lppf)
+        worst = max(worst, float(jnp.max(jnp.abs(ratio + 1.0))))
+check("pair: antisymmetry under all pair swaps", worst < 1e-6, f"max |psi'/psi + 1| = {worst:.2e}")
+xc = jnp.roll(xr, shift=1, axis=1).reshape(-1, N * DIM)
+worst = float(jnp.max(jnp.abs(jnp.exp(modelpf(xc) - lppf) - 1.0)))
+check("pair: even permutation invariant", worst < 1e-6, f"max |psi'/psi - 1| = {worst:.2e}")
+finite = True
+for eps in [1e-1, 1e-3, 1e-6, 0.0]:
+    xcol = base.at[0, 1, :].set(base[0, 0, :] + eps).reshape(1, -1)
+    finite &= bool(jnp.all(jnp.isfinite(modelpf(xcol))))
+check("pair: no NaN/Inf at and near collisions", finite)
+xnear = base.at[0, 1, :].set(base[0, 0, :] + 1e-5).reshape(1, -1)
+g = jax.grad(lambda z: jnp.real(modelpf(z)).sum())(xnear)
+check("pair: finite gradient near collision", bool(jnp.all(jnp.isfinite(g))))
+check("pair: finite in the far field", bool(jnp.all(jnp.isfinite(modelpf(xfar)))))
+model1dpf = FermiSets(dim=1, N=4, rngs=nnx.Rngs(7), log=log, hidden_units=16, out_units=10,
+                      pair_hidden=8)
+lp1pf = model1dpf(x1)
+worst = 0.0
+for i in range(4):
+    for j in range(i):
+        xs1 = x1r.at[:, [i, j], :].set(x1r[:, [j, i], :]).reshape(-1, 4)
+        ratio = jnp.exp(model1dpf(xs1) - lp1pf)
+        worst = max(worst, float(jnp.max(jnp.abs(ratio + 1.0))))
+check("pair 1D: antisymmetry under all pair swaps", worst < 1e-6,
+      f"max |psi'/psi + 1| = {worst:.2e}")
+
 # --- 7. exact reference energies used as the benchmark target
 for n, d, expect in [(1, 2, 1.0), (3, 2, 5.0), (6, 2, 14.0), (4, 2, 8.0), (5, 1, 12.5)]:
     got = exact_qho_gs_energy(n, d, "fermion")

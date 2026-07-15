@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 # which made runs fall back to the default sgd without any warning)
 ALLOWED_CFG_KEYS = {
     "system": {"N", "dim", "mass", "potential", "omega_y"},
-    "ansatz": {"model", "pretrained_path", "hidden_units", "out_units", "pool_fct_name", "L", "lz_proj_K"},
+    "ansatz": {"model", "pretrained_path", "hidden_units", "out_units", "pool_fct_name", "L", "lz_proj_K", "pair_hidden"},
     "sampler": {"sigma", "n_chains", "sweep_size", "exchange_prob", "tune_sigma"},
     "trainer": {
         "lr", "vmc_iters", "n_samples", "diag_shift", "n_discard_per_chain",
@@ -222,7 +222,8 @@ def main(cfg : DictConfig):
             pool_fct_name=fermi_pool_fct_name,
             L=fermi_L,
             log= log,
-            lz_proj_K = cfg.ansatz.get("lz_proj_K", 0)
+            lz_proj_K = cfg.ansatz.get("lz_proj_K", 0),
+            pair_hidden = cfg.ansatz.get("pair_hidden", 0)
         )
 
         #not very usefull, delete mb 

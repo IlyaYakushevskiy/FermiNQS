@@ -442,3 +442,37 @@ Open follow-ups: (i) ω_y → 1 crossover — how the stall state morphs between
 det{1,z,z²} as symmetry is restored (cheap, diagnostic); (ii) pair-feature architecture to make
 triangle-area sign structures representable (the root fix); (iii) the interacting-dot 3-arm
 study. New probe: `excx` in tools/overlap_check.py (det{1,x,x²}, any ω).
+
+---
+
+## 2026-07-15 — Pair-feature architecture (Phase 2 / sanctioned idea #1, the root-cause attempt)
+
+**Design (before running).** Both benchmarks show the same failure: f(ξ, ±η) cannot build the
+singular symmetric prefactor S/T (T = |η|²) that converts the pairwise-product η into
+triangle-area-type states. Fix: add a **pair stream** to the symmetric embedding — Deep Sets
+over the N(N−1)/2 unordered pairs, features per pair (all exchange-even, so ξ stays symmetric
+and antisymmetry still comes solely from the ±η flip):
+  dim=2: [r², Re(Δz)², Im(Δz)², log(r²+1e-3), 1/(r²+1)]     (Δz = Δx + iΔy)
+  dim=1: [Δx², log(Δx²+1e-3), 1/(Δx²+1)]
+MLP per pair → sum-pool → concat with the per-particle pooled vector before the Ψ head.
+
+**The load-bearing feature is log(r²+ε):** −log T = −Σ_pairs [log r²ᵢⱼ − log(r²ᵢⱼ+1)] is then a
+LINEAR function of the pooled pair vector, so log ψ_GS = log η + log S − log T becomes directly
+expressible in log space (S smooth symmetric). ε = 1e-3 softens collisions (Fu's f_ε analogue);
+the discrepancy lives where |ψ|² → 0, so finite ε should not cap fidelity at the 1e-3 level.
+1/(r²+1) matches η's own a=1 regularizer.
+
+Config knob `ansatz.pair_hidden` (0 = off, fully backward compatible — old checkpoints/configs
+unchanged). Benchmark configs: `qho_fermisets_2d_3N_bench_pair.yaml` (ISOTROPIC, from scratch,
+**NO projection, no pretraining** — the historical always-fails-to-6.0 setting) and
+`qho_fermisets_2d_3N_aniso_pair.yaml` (same for the 6.75 trap). pair_hidden: 32,
+otherwise identical hyperparameters to the canonical bench.
+
+**Decision rule**: isotropic-pair from scratch first. If E descends below the 6.0 plateau with
+growing GS overlap → root cause addressed → run aniso-pair to confirm generality. If it stalls
+at 6.0 again → pair features insufficient at this size/feature set; that exhausts sanctioned
+idea #1 and the negative result stands (projection/pretraining remain the escape routes).
+Note: eigenstates remain parameter-space stationary points under ANY architecture — the
+hypothesis is about basin geometry from random init, not about removing the stationary point.
+
+Status: implementing; results appended below.
