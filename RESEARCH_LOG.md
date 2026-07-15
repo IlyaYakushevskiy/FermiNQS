@@ -592,3 +592,35 @@ projection onto any sector that separates the GS from the ansatz's lazy states: 
 aniso trap, y-parity does this (GS det{1,x,y} has (Σnx,Σny) parity (1,1); the trap
 det{1,x,x²} has (1,0)) — a ×2-cost reflection average, UNTESTED (idea, not run). Systems
 with no usable symmetry at all (disorder, generic geometry) still need pretraining.**
+
+---
+
+## 2026-07-15 — SCALING TEST: N=6 closed shell (design, written before running)
+
+**Goal**: first data point on how FermiSets + L_z projection scales in N. The O(N²)
+evaluation-cost advantage over Slater determinants is structural; what must be MEASURED
+is what happens to accuracy at fixed architecture when N doubles.
+
+**System A — N=6, 2D isotropic QHO, non-interacting.** Exact GS E = 14 (shells 0,1,2
+filled: 1·1+2·2+3·3), closed shell, non-degenerate, gap 1. Lazy family: η has degree
+N(N−1)/2 = 15 (L_z = 15), trap det{1,z,…,z⁵} at E = 21; family member η·(sym deg d) has
+L_z = 15+d, E = 21+d. K=6 projection keeps L_z ≡ 0 (mod 6): surviving lazy states need
+d ≡ 3 (mod 6) → E ≥ 24; non-lazy leakage needs |L_z| ≥ 6 → E ≥ 20. Projected-sector
+spectrum: **14 (GS), 16 (next), ≥20 (leakage)** — clean margins, K=6 carries over.
+
+**Design decision**: identical architecture and hyperparameters to the N=3 benchmark
+(hidden 64, out 10, lz_proj_K 6, momentum lr 0.01, 4096 samples, 512 chains, seed 42).
+The scaling question is what FIXED capacity delivers at doubled N — tuning would
+confound it. Iteration budget set after measuring s/it in the Stage-1 shakedown.
+
+**Risks flagged in advance**: (i) per-sample cost up (15 pairs vs 3, 12 coords, ×6
+projection); (ii) 64 hidden units may be genuinely insufficient at N=6 — plateau far
+above 14 with LOW variance ⇒ identify the state via overlaps; HIGH variance ⇒ capacity/
+optimization, distinguishable; (iii) sampler mixing in 12 dims — watch acceptance, R̂,
+train/val agreement; (iv) Stage 0 extended with N=6 structural checks first.
+
+**System B — N=6 interacting dot (afterwards)**: ED reference feasibility: shells≤5 →
+C(21,6)=54,264 dets ≈ 13.5k/parity block (excitation-driven sparse build OK); shells≤6
+→ ≈94k/block, heavy; run a shells-convergence study on CPU while the GPU trains System A.
+
+Status: extending stage0, then shakedown, then Stage 2 (run dirs appended below).

@@ -165,6 +165,44 @@ for i in range(4):
 check("pair 1D: antisymmetry under all pair swaps", worst < 1e-6,
       f"max |psi'/psi + 1| = {worst:.2e}")
 
+# --- 6e. N=6 scaling checks (RESEARCH_LOG 2026-07-15): projected model at the next
+# closed shell. eta degree 15 (L_z=15) — K=6 keeps it unrepresentable (15 mod 6 != 0).
+N6 = 6
+model6 = FermiSets(dim=2, N=N6, rngs=nnx.Rngs(42), log=log, hidden_units=64, out_units=10,
+                   lz_proj_K=6)
+x6 = jax.random.normal(jax.random.PRNGKey(4), (64, N6 * DIM), dtype=jnp.float64)
+lp6 = model6(x6)
+check("N=6 proj: finite on random configs", bool(jnp.all(jnp.isfinite(lp6))))
+x6r = x6.reshape(-1, N6, DIM)
+worst = 0.0
+for i in range(N6):
+    for j in range(i):
+        xs6 = x6r.at[:, [i, j], :].set(x6r[:, [j, i], :]).reshape(-1, N6 * DIM)
+        ratio = jnp.exp(model6(xs6) - lp6)
+        worst = max(worst, float(jnp.max(jnp.abs(ratio + 1.0))))
+check("N=6 proj: antisymmetry under all 15 pair swaps", worst < 1e-6,
+      f"max |psi'/psi + 1| = {worst:.2e}")
+# roll by 2 = two 3-cycles = EVEN for N=6 (a single roll is a 6-cycle, odd)
+xc6 = jnp.roll(x6r, shift=2, axis=1).reshape(-1, N6 * DIM)
+worst = float(jnp.max(jnp.abs(jnp.exp(model6(xc6) - lp6) - 1.0)))
+check("N=6 proj: even permutation invariant", worst < 1e-6, f"max |psi'/psi - 1| = {worst:.2e}")
+xrot6 = jnp.stack([c * x6r[..., 0] - s * x6r[..., 1], s * x6r[..., 0] + c * x6r[..., 1]],
+                  axis=-1).reshape(-1, N6 * DIM)
+worst = float(jnp.max(jnp.abs(jnp.exp(model6(xrot6) - lp6) - 1.0)))
+check("N=6 proj: invariant under 2pi/6 rotation", worst < 1e-6,
+      f"max |psi'/psi - 1| = {worst:.2e}")
+base6 = jax.random.normal(jax.random.PRNGKey(5), (1, N6, DIM), dtype=jnp.float64)
+finite = True
+for eps in [1e-1, 1e-3, 1e-6, 0.0]:
+    xcol6 = base6.at[0, 1, :].set(base6[0, 0, :] + eps).reshape(1, -1)
+    finite &= bool(jnp.all(jnp.isfinite(model6(xcol6))))
+check("N=6 proj: no NaN/Inf at and near collisions", finite)
+xnear6 = base6.at[0, 1, :].set(base6[0, 0, :] + 1e-5).reshape(1, -1)
+g6 = jax.grad(lambda z: jnp.real(model6(z)).sum())(xnear6)
+check("N=6 proj: finite gradient near collision", bool(jnp.all(jnp.isfinite(g6))))
+xfar6 = 10.0 * jax.random.normal(jax.random.PRNGKey(6), (16, N6 * DIM), dtype=jnp.float64)
+check("N=6 proj: finite in the far field", bool(jnp.all(jnp.isfinite(model6(xfar6)))))
+
 # --- 7. exact reference energies used as the benchmark target
 for n, d, expect in [(1, 2, 1.0), (3, 2, 5.0), (6, 2, 14.0), (4, 2, 8.0), (5, 1, 12.5)]:
     got = exact_qho_gs_energy(n, d, "fermion")
