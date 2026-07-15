@@ -108,7 +108,9 @@ directory — treat existing PNGs in `plots/` as historical output, not somethin
 
 **System: N=3 spinless fermions, dim=2, non-interacting harmonic trap. Exact ground-state energy E = 5.0 ħω.**
 Config: `configs/experiment/qho_fermisets_2d_3N_bench.yaml`. This is THE benchmark — all bug hunting and
-optimization work is measured against it before anything else is tried.
+optimization work is measured against it before anything else is tried. A second, no-symmetry variant
+exists: `qho_fermisets_2d_3N_aniso.yaml` (anisotropic trap `qho_aniso`, ω_y=1.5, exact GS E = 6.25,
+`lz_proj_K` must be 0) — used 2026-07-15 to prove the trap generalizes beyond the QHO (see RESEARCH_LOG).
 
 Why this system and not the others in `configs/experiment/`:
 - **Closed shell.** In the 2D trap, shells k = nₓ+n_y have degeneracy k+1; N=3 fills shells 0 and 1
@@ -159,9 +161,11 @@ summary instead of trying "one more idea."
 - `tests/stage0_sanity.py` — structural ansatz checks (antisymmetry, collisions, NaN); run before
   any training after touching `src/ansatz.py`.
 - `tools/overlap_check.py <ckpt.mpack>` — energy + squared overlaps of an N=3 2D checkpoint with
-  the analytic GS, the holomorphic trap state, and its conjugate mirror. **Pass `--lz-proj-K`
-  matching the training config** — a checkpoint trained with projection evaluates to a completely
-  different (wrong) state without it.
+  the analytic GS, the holomorphic trap state, its conjugate mirror, and `excx` = det{1,x,x²}
+  (the real-Vandermonde state; exact first excited state of the anisotropic trap). **Pass
+  `--lz-proj-K` matching the training config** — a checkpoint trained with projection evaluates
+  to a completely different (wrong) state without it. For `qho_aniso` checkpoints also pass
+  `--omega-y` matching `system.omega_y`.
 - `tools/pretrain_hf.py --N <n>` — answer-free HF/Slater pretraining (aufbau oscillator orbitals,
   SCF-coefficient hook for future interacting systems); writes an `.mpack` for
   `ansatz.pretrained_path`. `tools/pretrain_gs.py` is its N=3-only predecessor fitting the exact GS

@@ -31,25 +31,44 @@ from src.ansatz import FermiSets
 N, DIM = 3, 2
 
 
-def log_gs(x):
+def log_env(x, wy=1.0):
+    # trap envelope exp(-sum(x^2 + wy*y^2)/2); wy != 1 = anisotropic (qho_aniso, omega_y=wy).
+    # note: frequency wy enters the exponent linearly (m = hbar = 1).
+    xr = x.reshape(-1, N, DIM)
+    return -0.5 * jnp.sum(xr[..., 0] ** 2 + wy * xr[..., 1] ** 2, axis=-1)
+
+
+def log_gs(x, wy=1.0):
+    # exact GS for both wy=1 (E=5) and wy!=1 (e.g. E=6.25 at wy=1.5): same det, squeezed envelope
     xr = x.reshape(-1, N, DIM)
     ones = jnp.ones_like(xr[..., 0])
     Md = jnp.stack([ones, xr[..., 0], xr[..., 1]], axis=-1).astype(jnp.complex128)
-    return jnp.log(jnp.linalg.det(Md)) - 0.5 * jnp.sum(x**2, axis=-1)
+    return jnp.log(jnp.linalg.det(Md)) + log_env(x, wy)
 
 
-def log_holo(x):
+def log_holo(x, wy=1.0):
+    # wy=1: exact trap eigenstate (E=6). wy!=1: NOT an eigenstate — the "lazy analogue" probe
     xr = x.reshape(-1, N, DIM)
     z = xr[..., 0] + 1j * xr[..., 1]
     Md = jnp.stack([jnp.ones_like(z), z, z**2], axis=-1)
-    return jnp.log(jnp.linalg.det(Md)) - 0.5 * jnp.sum(x**2, axis=-1)
+    return jnp.log(jnp.linalg.det(Md)) + log_env(x, wy)
 
 
-def log_antiholo(x):
+def log_antiholo(x, wy=1.0):
     xr = x.reshape(-1, N, DIM)
     zb = xr[..., 0] - 1j * xr[..., 1]
     Md = jnp.stack([jnp.ones_like(zb), zb, zb**2], axis=-1)
-    return jnp.log(jnp.linalg.det(Md)) - 0.5 * jnp.sum(x**2, axis=-1)
+    return jnp.log(jnp.linalg.det(Md)) + log_env(x, wy)
+
+
+def log_excx(x, wy=1.0):
+    # det{1, x, x^2}: all-x-excitation determinant, antisymmetric factor = the REAL 1D
+    # Vandermonde prod(x_i - x_j) (sortable sign structure). For wy=1.5 this is the exact
+    # first excited state, E = 6.75 (Hermite lower-order terms cancel in the det).
+    xr = x.reshape(-1, N, DIM)
+    x1 = xr[..., 0]
+    Md = jnp.stack([jnp.ones_like(x1), x1, x1**2], axis=-1).astype(jnp.complex128)
+    return jnp.log(jnp.linalg.det(Md)) + log_env(x, wy)
 
 
 def main():
@@ -60,9 +79,15 @@ def main():
     ap.add_argument("--samples", type=int, default=400_000)
     ap.add_argument("--lz-proj-K", type=int, default=0,
                     help="must match the training config's ansatz.lz_proj_K")
+    ap.add_argument("--omega-y", type=float, default=1.0,
+                    help="anisotropic trap frequency; must match system.omega_y (1.0 = isotropic)")
     args = ap.parse_args()
 
-    system = System(N=N, dim=DIM, mass=1.0, potential="qho_no_inter")
+    wy = args.omega_y
+    if wy != 1.0:
+        system = System(N=N, dim=DIM, mass=1.0, potential="qho_aniso", omega_y=wy)
+    else:
+        system = System(N=N, dim=DIM, mass=1.0, potential="qho_no_inter")
     model = FermiSets(dim=DIM, N=N, rngs=nnx.Rngs(42), log=logging.getLogger(),
                       hidden_units=args.hidden, out_units=args.out,
                       lz_proj_K=args.lz_proj_K)
@@ -74,10 +99,17 @@ def main():
     print(f"loaded {args.ckpt}")
 
     E = vstate.expect(system.H)
-    print(f"energy: {E}   (gs = 5.0, holo/antiholo = 6.0)")
+    if wy == 1.0:
+        print(f"energy: {E}   (gs = 5.0, holo/antiholo = 6.0)")
+    else:
+        print(f"energy: {E}   (aniso omega_y={wy}: gs = 6.25 for wy=1.5; "
+              f"holo/antiholo are lazy-analogue probes, not eigenstates)")
 
     funcs = {"nn": lambda x: vstate.log_value(x),
-             "gs": log_gs, "holo": log_holo, "antiholo": log_antiholo}
+             "gs": lambda x: log_gs(x, wy),
+             "holo": lambda x: log_holo(x, wy),
+             "antiholo": lambda x: log_antiholo(x, wy),
+             "excx": lambda x: log_excx(x, wy)}
     names = list(funcs)
     S = {(a, b): 0.0 + 0j for a in names for b in names}
 
@@ -97,7 +129,7 @@ def main():
                 S[(a, b)] += complex(jnp.sum(w))
 
     print()
-    for b in ["gs", "holo", "antiholo"]:
+    for b in ["gs", "holo", "antiholo", "excx"]:
         ov2 = abs(S[("nn", b)]) ** 2 / (S[("nn", "nn")].real * S[(b, b)].real)
         print(f"|<nn|{b}>|^2 = {ov2:.6f}")
     ov2 = abs(S[("gs", "holo")]) ** 2 / (S[("gs", "gs")].real * S[("holo", "holo")].real)

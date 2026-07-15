@@ -23,9 +23,21 @@ class System():
         self.Ekin = nk.operator.KineticEnergy(self.hi, mass = 1.0) #this part stays const
 
         if self.potential == "qho_no_inter":
-            def v(x): 
+            def v(x):
                 return 0.5 * jnp.sum(x**2, axis=-1) # potential is 1/2 * m w^2 * x^2 -> hbar * w = 1 , GS is 1/2 * hbar w * dim * particles
-        #elif potential == ""
+        elif self.potential == "qho_aniso":
+            # anisotropic trap v = (x^2 + omega_y^2 y^2)/2: breaks rotational symmetry
+            # ([H, L_z] != 0 — lz_proj_K must be 0), spectrum still separable:
+            # E(nx, ny) = (nx + 1/2) + omega_y (ny + 1/2), see exact_trap_gs_energy in main.py
+            if dim != 2:
+                raise ValueError("qho_aniso is 2D only")
+            self.omega_y = float(kwargs.get("omega_y") or 1.5)
+            # weights follow the flattened layout (x1, y1, x2, y2, ...)
+            w = jnp.tile(jnp.array([1.0, self.omega_y**2]), N)
+            def v(x):
+                return 0.5 * jnp.sum(w * x**2, axis=-1)
+        else:
+            raise ValueError(f"unknown potential '{potential}'")
 
 
         self.Epot = nk.operator.PotentialEnergy(self.hi, v)

@@ -18,7 +18,7 @@ from flax import nnx
 
 sys.path.insert(0, ".")
 from src.ansatz import FermiSets
-from main import exact_qho_gs_energy
+from main import exact_qho_gs_energy, exact_trap_gs_energy
 
 log = logging.getLogger("stage0")
 FAILURES = []
@@ -133,6 +133,17 @@ check("proj: invariant under 2pi/6 rotation", worst < 1e-6, f"max |psi'/psi - 1|
 for n, d, expect in [(1, 2, 1.0), (3, 2, 5.0), (6, 2, 14.0), (4, 2, 8.0), (5, 1, 12.5)]:
     got = exact_qho_gs_energy(n, d, "fermion")
     check(f"exact E(N={n}, d={d}) == {expect}", abs(got - expect) < 1e-12, f"got {got}")
+
+# --- 7b. anisotropic trap references (no-symmetry benchmark, RESEARCH_LOG 2026-07-15)
+got = exact_trap_gs_energy(3, (1.0, 1.5), "fermion")
+check("aniso exact E(N=3, omegas=(1,1.5)) == 6.25", abs(got - 6.25) < 1e-12, f"got {got}")
+got = exact_trap_gs_energy(3, (1.0, 1.0), "fermion")
+check("aniso reduces to isotropic (N=3) == 5.0", abs(got - 5.0) < 1e-12, f"got {got}")
+try:
+    exact_trap_gs_energy(3, (1.0, 2.0), "fermion")  # (2,0) and (0,1) tie at the Fermi level
+    check("degenerate Fermi level raises", False, "no ValueError for omegas=(1,2)")
+except ValueError:
+    check("degenerate Fermi level raises", True)
 
 print()
 if FAILURES:

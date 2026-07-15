@@ -323,3 +323,122 @@ the last decimal.**
 symmetry projection alone (2 of the 3 sanctioned ideas used: pretrain-diagnostic, projection;
 deflation never needed). From-scratch error on the canonical benchmark: 20% (old, all 746 runs)
 → 0.2–0.3% (this run), with 99.9% GS fidelity.**
+
+---
+
+## 2026-07-15 — Does the L_z trick generalize? (discussion, no runs)
+
+User challenge: "L_z projection cheats the particular symmetric benchmark." Assessment:
+
+**Not cheating in the standard sense** — the projection uses [H, L_z] = 0 + the target sector,
+a property of the Hamiltonian, not of the solution (same class as fixing N or S_z; cf.
+point-group symmetrization in quantum chemistry, momentum/point-group projection in lattice NQS
+à la Choo–Neupert–Carleo, angular-momentum projection in nuclear structure). **But** the fair
+core of the objection stands: the escape worked by making the trap *unrepresentable*, so we have
+NOT shown FermiSets can escape lazy eigenstates when no symmetry forbids them.
+
+**Key counter-observation**: the trap is exactly stationary only because η × symmetric is an
+*exact eigenstate of the non-interacting QHO* (Vandermonde × Gaussian). With any interaction on,
+that state stops being an eigenstate → nonzero gradient there → plain VMC can slide off. Open
+question: does a soft metastable basin remain, or does the pathology evaporate with the
+fine-tuning that created it? (Aside: the holomorphic states are LLL/Laughlin-type — the ansatz's
+bias would be a *feature* for rotating traps / FQHE regimes.)
+
+**Where the trick transfers**: any rotationally symmetric 2D system, interacting included —
+2D quantum dots (harmonic + Coulomb; [H,L_z]=0 survives interactions; GS sector can shift to
+"magic" L at strong coupling / Wigner regime → scan sectors via phases e^(−2πikl/K));
+harmonium/Taut atom (analytic interacting reference at special ω, but N=2 polarized GS is
+degenerate m=±1); 2D HEG (analogue = total-momentum projection). **Where it dies**: generic
+geometries (molecules, disorder) — there HF pretraining (`tools/pretrain_hf.py`) is the
+production escape, exactly the FermiNet/PauliNet pipeline.
+
+**Proposed next benchmark (settles the objection with data)** — N=3 spin-polarized 2D quantum
+dot, Coulomb λ/r (new `qho_coulomb` branch in `src/system.py`), three arms:
+  1. from scratch, NO projection — falsification test: if VMC finds the GS unaided, the trap was
+     a QHO artifact; if it hangs near holomorphic-ish states, the trap is a soft basin and the
+     mitigations earn their keep;
+  2. with lz_proj_K — does projection still deliver with interactions on;
+  3. with HF pretraining — production pipeline (SCF `coeffs` hook already in pretrain_hf.py).
+Ground truth: small CI/ED code in the oscillator basis (N=3, few dozen orbitals — minutes on
+CPU), gives exact reference energies at any coupling. Status: QUEUED as future work
+(user decision 2026-07-15) — the no-symmetry falsification test below runs first, since it
+answers the same "is the trap a QHO artifact?" question with far less machinery.
+
+---
+
+## 2026-07-15 — No-symmetry benchmark: anisotropic trap (falsification test of the trap hypothesis)
+
+**Design** (documented before running, per protocol). User question: does FermiSets work at all
+without rotational symmetry to lean on? Cleanest test found: the **anisotropic harmonic trap**
+V = ½(x² + ω_y² y²), ω_y = 1.5 — breaks rotational symmetry completely ([H, L_z] ≠ 0; the L_z
+projection is not just unavailable, it would be *wrong*), yet remains exactly solvable:
+single-particle levels E(nₓ, n_y) = (nₓ + ½) + ω_y(n_y + ½).
+
+**System: N=3 spinless fermions, dim=2, ω_y = 1.5.** Levels 1.25, 2.25, 2.75 | gap 0.5 | next 3.25
+→ **exact GS energy E = 6.25, non-degenerate** (ω_y = 2 would be degenerate at the Fermi level —
+avoided deliberately; a degeneracy guard now raises on such configs). Exact GS wavefunction:
+det{1, x, y} × ∏ᵢ exp(−(xᵢ² + 1.5 yᵢ²)/2) — same collinear nodal topology as the solved isotropic
+benchmark, just a squeezed envelope. The ansatz itself needs NO changes: FermiSets has no
+hardcoded isotropy (learned envelope; η is a valid signature encoder for any 2D system).
+
+**Hypothesis under test**: the holomorphic trap was exactly stationary only because
+η × symmetric happened to be an exact QHO eigenstate. In the anisotropic trap it is NOT an
+eigenstate → nonzero gradient there → from-scratch VMC (no projection, no pretraining) should
+slide off and find the GS. Outcomes:
+- **A (trap = QHO artifact)**: E → 6.25 from scratch, GS overlap ≈ 1. Then FermiSets needs no
+  crutch in generic geometries, and L_z projection is understood as the fix for the
+  pathologically symmetric benchmark specifically.
+- **B (trap = soft basin)**: stall at some plateau above 6.25 with high overlap onto
+  det{1,z,z²} × squeezed envelope (the lazy analogue, no longer an eigenstate). Then
+  trap-escape machinery (HF pretraining) is needed generally, and the ω_y → 1 crossover
+  (how stall time diverges as symmetry is restored) becomes the interesting follow-up.
+
+**Code**: `qho_aniso` branch in `src/system.py` (+ `omega_y` config key), general
+`exact_trap_gs_energy(N, omegas)` in `main.py` (aufbau fill of anisotropic levels, raises on
+Fermi-level degeneracy), config `configs/experiment/qho_fermisets_2d_3N_aniso.yaml`
+(copy of the canonical bench: seed 42, momentum lr 0.01, 4096 samples, 512 chains, 800 iters,
+**lz_proj_K: 0**), stage-0 checks for the new energies, `tools/overlap_check.py --omega-y`
+(anisotropic envelope in the reference states). Cost without projection: ~2.5 s/it → full run
+~35 min. Status at time of writing: RUNNING — result appended below when done.
+
+**RESULT (run `outputs/2026-07-15/13-32-36`, 800 iters, ~3.6 s/it): Outcome B — and sharper
+than predicted. The trap generalizes; holomorphy was never the point.**
+
+- Trajectory: 9.1 → plateau 6.75–6.77 from ~step 150; final training estimate 6.7519 ± 0.0043;
+  validation flat at 6.75–6.76 for the last 400 steps; σ² settles at 0.06–0.13 (not → 0).
+  Exact GS = 6.25: stalled 8% high. Guard silent, R̂ ≈ 1.06, acceptance 0.50.
+- Step-750 checkpoint (overlap_check `--omega-y 1.5`): E = 6.7547 ± 0.0036 (σ² = 0.086, R̂ = 1.004),
+  |⟨ψ|GS⟩|² = **1.5e-5**, |⟨ψ|holo⟩|² = |⟨ψ|antiholo⟩|² = 0.216 (equal — conjugation-symmetric
+  state), |⟨ψ|det{1,x,x²}⟩|² = **0.9989**.
+- Identification: det{1, x, x²} × envelope is the **exact first excited state** of the ω_y=1.5
+  trap — promote (0,1) → (2,0), E = 1.25 + 2.25 + 3.25 = 6.75, non-degenerate (next excitation
+  7.25). The run parked exactly on it, nailing its energy to 0.07% — same accuracy scale as the
+  L_z-projected GS run. The Hermite lower-order terms cancel inside the determinant, so
+  det{1,x,x²} is exact, and its antisymmetric factor is the REAL 1D Vandermonde ∏(xᵢ−xⱼ).
+
+**Refined mechanism (supersedes "holomorphic trap" as the general statement):** from-scratch
+FermiSets converges to the lowest eigenstate whose sign structure is a *product of pairwise
+differences* — the sortable / Vandermonde-type sign structures that are representationally easy
+for f(ξ, ±η):
+  - isotropic trap → det{1,z,z²}: complex Vandermonde ∏(zᵢ−zⱼ) = literally η (E=6, L_z=3);
+  - anisotropic trap → det{1,x,x²}: real Vandermonde ∏(xᵢ−xⱼ) = the classically-easy 1D
+    ("sortable") antisymmetry embedded in 2D (E=6.75).
+The true GS det{1,x,y} has the signed-triangle-area sign structure — NOT a product of pairwise
+terms, the genuinely-2D case requiring singular/non-smooth f — and the network avoids it in
+every geometry tested. So the trap is a property of the **parity-graded ansatz + local
+optimization**, not of the QHO's rotational symmetry. The user's suspicion that L_z projection
+"cheats the symmetric benchmark" is answered by data: the projection is indeed a symmetric-case
+fix, but the pathology it fixes generalizes to non-symmetric systems, where from-scratch
+training fails identically (0 GS overlap). Escape machinery is a *required* production
+ingredient, not a benchmark crutch: HF pretraining (general geometries) / symmetry projection
+(when available) / pair-feature architectures (root-cause fix, Phase 2).
+
+Deliberately NOT run: the HF-pretrained arm for this trap. For a non-interacting system HF is
+exact, so "HF pretraining" here would be pretraining on the exact GS — near-certain outcome
+(already demonstrated at 0.951 init overlap isotropically) and no new information per GPU-hour.
+The place where the HF arm is a real test is the interacting dot (QUEUED above).
+
+Open follow-ups: (i) ω_y → 1 crossover — how the stall state morphs between det{1,x,x²} and
+det{1,z,z²} as symmetry is restored (cheap, diagnostic); (ii) pair-feature architecture to make
+triangle-area sign structures representable (the root fix); (iii) the interacting-dot 3-arm
+study. New probe: `excx` in tools/overlap_check.py (det{1,x,x²}, any ω).

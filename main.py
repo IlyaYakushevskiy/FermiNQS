@@ -27,7 +27,7 @@ log = logging.getLogger(__name__)
 # guard against silently-ignored config typos (e.g. the historical 'optmizer' key,
 # which made runs fall back to the default sgd without any warning)
 ALLOWED_CFG_KEYS = {
-    "system": {"N", "dim", "mass", "potential"},
+    "system": {"N", "dim", "mass", "potential", "omega_y"},
     "ansatz": {"model", "pretrained_path", "hidden_units", "out_units", "pool_fct_name", "L", "lz_proj_K"},
     "sampler": {"sigma", "n_chains", "sweep_size", "exchange_prob", "tune_sigma"},
     "trainer": {
@@ -68,7 +68,34 @@ def exact_qho_gs_energy(N: int, dim: int, statistics: str = "fermion") -> float:
     else:
         raise ValueError(f"Unknown statistics: {statistics}")
 
-# TODO move into separate file 
+def exact_trap_gs_energy(N: int, omegas, statistics: str = "fermion") -> float:
+    """
+    Exact non-interacting GS energy in an anisotropic harmonic trap with per-axis
+    frequencies `omegas` (e.g. (1.0, 1.5)): aufbau fill of E(n) = sum_a omega_a (n_a + 1/2).
+    Reduces to exact_qho_gs_energy when all omegas are 1. Raises if the Fermi level is
+    degenerate — such a system is not a valid benchmark (ambiguous ground state).
+    """
+    base_energy = 0.5 * sum(omegas)
+
+    if statistics in ["boson", "distinguishable"]:
+        return N * base_energy
+
+    elif statistics == "fermion":
+        ranges = [range(N + 1)] * len(omegas)
+        state_energies = sorted(
+            sum(w * n for w, n in zip(omegas, ns)) for ns in itertools.product(*ranges)
+        )
+        if abs(state_energies[N] - state_energies[N - 1]) < 1e-12:
+            raise ValueError(
+                f"degenerate Fermi level for N={N}, omegas={omegas} "
+                f"(level {state_energies[N-1]:.6f} shared) — pick omegas with a gapped fill"
+            )
+        return float(sum(state_energies[:N]) + N * base_energy)
+    else:
+        raise ValueError(f"Unknown statistics: {statistics}")
+
+
+# TODO move into separate file
 class SamplerExchangeRule(MetropolisRule):
     """
     A custom rule for spinless fermions: interweaves Gaussian drift 
@@ -141,17 +168,23 @@ def main(cfg : DictConfig):
     
     log.info(f"starting experiment with config: {cfg} ")
     system = System(
-        N= cfg.system.N, 
-        dim= cfg.system.dim, 
+        N= cfg.system.N,
+        dim= cfg.system.dim,
         mass = cfg.system.mass,
-        potential= cfg.system.potential
+        potential= cfg.system.potential,
+        omega_y= cfg.system.get("omega_y", None)
     )
 
     is_fermionic = "fermi" in cfg.ansatz.model
     statistics = "fermion" if is_fermionic else "boson"
-    
-    
-    exact_energy = exact_qho_gs_energy(cfg.system.N, cfg.system.dim, statistics)
+
+    if cfg.system.potential == "qho_aniso":
+        omegas = (1.0,) * (cfg.system.dim - 1) + (system.omega_y,)
+        exact_energy = exact_trap_gs_energy(cfg.system.N, omegas, statistics)
+        if cfg.ansatz.get("lz_proj_K", 0):
+            raise ValueError("lz_proj_K > 0 with qho_aniso: L_z is not conserved here")
+    else:
+        exact_energy = exact_qho_gs_energy(cfg.system.N, cfg.system.dim, statistics)
 
     hydra_cfg = HydraConfig.get()
     current_out_dir = hydra_cfg.runtime.output_dir
