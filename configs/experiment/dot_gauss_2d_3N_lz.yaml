@@ -1,0 +1,44 @@
+# @package _global_
+# INTERACTING DOT, ARM 2 — L_z-projected (RESEARCH_LOG 2026-07-15).
+# The Gaussian interaction depends only on inter-particle distances, so [H, L_z] = 0
+# survives interactions: the projection trick carries over verbatim from the QHO benchmark.
+# ED reference (tools/ed_dot.py, shells<=7): E_GS = 6.21066, gap 0.81.
+# 400 iters (not 800): the projected isotropic benchmark converged by ~step 200, and the
+# projection costs ~6x per evaluation (~1.7 h total on the 2080).
+seed: 42
+use_wnb: False
+
+system:
+  N: 3
+  dim: 2
+  potential: dot_gauss
+  int_strength: 2.0
+  int_range: 1.0
+  e_ref: 6.21066     # ED reference — regenerate with: python tools/ed_dot.py --N 3 --lam 2.0 --s 1.0 --shells 7
+
+ansatz:
+  model: fermi_sets
+  hidden_units: 64
+  out_units: 10
+  pretrained_path: null
+  lz_proj_K: 6
+  pair_hidden: 0
+
+trainer:
+  vmc_iters: 400
+  lr: 0.01
+  n_samples: 4096
+  diag_shift: 0.05
+  validation: true
+  optimizer: momentum
+  momentum_beta: 0.9
+  chunk_size: 1024
+  lr_decay_rate: 0.95
+  lr_decay_steps: 100
+  pinv_rtol: 1e-12
+  pinv_atol: 1e-14
+
+sampler:
+  sigma: 0.1
+  n_chains: 512
+  sweep_size: 32

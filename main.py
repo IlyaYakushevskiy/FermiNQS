@@ -27,7 +27,7 @@ log = logging.getLogger(__name__)
 # guard against silently-ignored config typos (e.g. the historical 'optmizer' key,
 # which made runs fall back to the default sgd without any warning)
 ALLOWED_CFG_KEYS = {
-    "system": {"N", "dim", "mass", "potential", "omega_y"},
+    "system": {"N", "dim", "mass", "potential", "omega_y", "int_strength", "int_range", "e_ref"},
     "ansatz": {"model", "pretrained_path", "hidden_units", "out_units", "pool_fct_name", "L", "lz_proj_K", "pair_hidden"},
     "sampler": {"sigma", "n_chains", "sweep_size", "exchange_prob", "tune_sigma"},
     "trainer": {
@@ -172,7 +172,9 @@ def main(cfg : DictConfig):
         dim= cfg.system.dim,
         mass = cfg.system.mass,
         potential= cfg.system.potential,
-        omega_y= cfg.system.get("omega_y", None)
+        omega_y= cfg.system.get("omega_y", None),
+        int_strength= cfg.system.get("int_strength", None),
+        int_range= cfg.system.get("int_range", None)
     )
 
     is_fermionic = "fermi" in cfg.ansatz.model
@@ -183,6 +185,11 @@ def main(cfg : DictConfig):
         exact_energy = exact_trap_gs_energy(cfg.system.N, omegas, statistics)
         if cfg.ansatz.get("lz_proj_K", 0):
             raise ValueError("lz_proj_K > 0 with qho_aniso: L_z is not conserved here")
+    elif cfg.system.potential == "dot_gauss":
+        # no analytic formula — reference comes from ED (tools/ed_dot.py), stored in the config
+        exact_energy = cfg.system.get("e_ref", None)
+        if exact_energy is None:
+            raise ValueError("dot_gauss requires system.e_ref — run tools/ed_dot.py and set it")
     else:
         exact_energy = exact_qho_gs_energy(cfg.system.N, cfg.system.dim, statistics)
 

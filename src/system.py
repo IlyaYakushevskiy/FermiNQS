@@ -36,6 +36,20 @@ class System():
             w = jnp.tile(jnp.array([1.0, self.omega_y**2]), N)
             def v(x):
                 return 0.5 * jnp.sum(w * x**2, axis=-1)
+        elif self.potential == "dot_gauss":
+            # interacting dot: harmonic trap + Gaussian repulsion lam * exp(-r_ij^2/(2 s^2)).
+            # Gaussian chosen over bare Coulomb deliberately: exact ED reference
+            # (tools/ed_dot.py), no coalescence cusp, identical operator in ED and VMC.
+            lam = float(kwargs.get("int_strength") or 2.0)
+            s_int = float(kwargs.get("int_range") or 1.0)
+            self.int_strength, self.int_range = lam, s_int
+            idx_i, idx_j = jnp.tril_indices(N, k=-1)
+            def v(x):
+                xr = x.reshape(x.shape[:-1] + (N, dim))
+                trap = 0.5 * jnp.sum(xr**2, axis=(-2, -1))
+                d = xr[..., idx_i, :] - xr[..., idx_j, :]
+                r2 = jnp.sum(d**2, axis=-1)
+                return trap + lam * jnp.sum(jnp.exp(-r2 / (2.0 * s_int**2)), axis=-1)
         else:
             raise ValueError(f"unknown potential '{potential}'")
 

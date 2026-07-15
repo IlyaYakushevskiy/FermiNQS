@@ -476,3 +476,65 @@ Note: eigenstates remain parameter-space stationary points under ANY architectur
 hypothesis is about basin geometry from random init, not about removing the stationary point.
 
 Status: implementing; results appended below.
+
+**RESULT: NEGATIVE — pair features do not change basin selection. Killed at ~step 100 by
+decision rule; sanctioned idea #1 exhausted.**
+
+Shakedown history (all documented failure modes, all fixed or fatal):
+- v1 unbounded features (raw r², quadrupoles ~50 on sampled configs): instant blow-up at
+  step 0 (σ² ≈ 3.6e2, complex-garbage energies, rollback exhausted). Root cause: feature
+  scale, not physics. FIX: bounded features log1p(r²), quadrupoles/(1+r²).
+- v2 zero-init gating of pair_dense2: stable, but early dynamics are then EXACTLY the plain
+  architecture → parks in the 6.0 trap before the stream wakes (gradient ≈ 0 at eigenstate,
+  nothing to wake it). Design error, reverted.
+- v3 bounded features + live init (committed 1e4b131): stable, Stage 0/1 clean.
+Full run `outputs/2026-07-15/17-20-12`: step 0 E = 6.611 (σ²=4.1) → step 50 E = 6.0004
+(σ²=1.5e-2) — full-scale trap capture, identical to the 746 historical runs. Killed there:
+the pre-registered risk is confirmed — **eigenstates are parameter-space stationary points
+under ANY architecture; representability (which the pair stream does add) is irrelevant once
+the optimizer reaches the trap, because no gradient signal remains.** Basin selection from
+random init is governed by which states are easy EARLY, and η×smooth is always easiest.
+
+Verdict for the thesis: the trap is an optimization-dynamics property, not (only) a
+representability gap. Architecture work cannot fix it alone; state selection must come from
+outside the energy gradient: symmetry projection (works, proven), pretraining (works,
+proven), or deflation (untested, idea #2, not spent). OPTIONAL cheap salvage (not run, GPU
+prioritized to the dot): pair features + lz_proj_K on the isotropic bench to attack the
+residual 0.3% variational gap — representability is exactly what the pair stream fixes, and
+inside the projected sector the trap is unrepresentable so basin selection is moot.
+
+---
+
+## 2026-07-15 — INTERACTING DOT: design, ED reference (arms 1–2 wired)
+
+**System**: N=3 spinless fermions, 2D, H = Σ(−½∇² + ½r²) + λ Σ_{i<j} exp(−r²ᵢⱼ/(2s²)),
+λ = 2.0, s = 1.0. **Gaussian repulsion chosen over bare Coulomb deliberately**: (i) two-body
+integrals in the oscillator basis are numerically exact (integrand smooth → Gauss-Legendre
+converges to machine precision), (ii) no coalescence cusp, so a smooth NN can represent the
+GS — trap failures are attributable to optimization, not cusp representability (Coulomb would
+confound the two), (iii) ED and VMC use the IDENTICAL operator → internally exact benchmark.
+Bare Coulomb = follow-up via Gaussian expansion of 1/r or Anisimovas–Matulis elements.
+
+**ED reference** (`tools/ed_dot.py`: full CI, Cartesian oscillator basis, parity-block
+diagonalization, Slater–Condon):
+- Validation: λ=0 → 5.0 exactly; N=2 ED vs INDEPENDENT radial-ODE solve of the relative
+  problem (m=1): +5e-5 (S=6) → +2.6e-6 (S=10), variational from above ✓. The validation
+  CAUGHT a real bug: doubles-excitation phase had a spurious factor (−1) — with it, N=2 ED
+  landed 5e-3 BELOW the ODE (impossible variationally). Fixed & verified. Lesson: never
+  trust CI signs without an independent cross-check.
+- **N=3, λ=2, s=1: E_GS = 6.21066** (shells ≤7, basis-converged ~8e-5), parity block (1,1)
+  (= adiabatically connected to the non-interacting closed shell), first excited 7.016
+  (x↔y doublet, rotational symmetry) → **gap 0.81, non-degenerate. Valid benchmark.**
+  Interaction shift +1.21 on E, ~24% of E_GS — genuinely interacting regime.
+
+**Arms** (plain ansatz pair_hidden=0, matching historical failure conditions):
+1. `dot_gauss_2d_3N_scratch` — from scratch, no projection: does the trap survive when
+   η×symmetric is NOT an eigenstate of the interacting H? (The aniso trap answered "the
+   network finds ANOTHER easy eigenstate" — here, with interactions, no Vandermonde-type
+   det is an eigenstate at all. Open question.)
+2. `dot_gauss_2d_3N_lz` — lz_proj_K=6 (Gaussian interaction is rotation-invariant →
+   [H,L_z]=0 survives → trick carries over verbatim), 400 iters (~6× eval cost).
+3. HF-pretrain arm: NOT wired yet — needs an SCF solver (Fock matrix from the same ED
+   integral tables; genuine test here since HF ≠ exact with interactions). Future work.
+
+Status: arm 1 launching (run dir appended below when done).
