@@ -297,5 +297,29 @@ ANYTHING low-energy — if optimization stalls near E≈7 (the sector's lazy-ish
 descending to 5, the verdict is that projection alone fixes representability-bias but not
 trainability, and the Phase-2 pair features become the complement.
 
-Run: `+experiment=qho_fermisets_2d_3N_bench_lz` (800 iters, from scratch, seed 42) — launched
-2026-07-14 ~15:30, results to be appended.
+Run: `+experiment=qho_fermisets_2d_3N_bench_lz` (800 iters, from scratch, seed 42, run dir
+`outputs/2026-07-14/15-36-30`, ~15 s/it ≈ 3.9 h total on the 2080) — **RESULT: solved, modulo
+the last decimal.**
+
+- Trajectory: E = 10.37 (step 0) → 5.17 (step 50) → plateau oscillating 5.01–5.03 from ~step 150;
+  best validations 5.0132 ± 0.0048 (step 600), 5.0173 ± 0.0039 (step 750, σ² = 0.062);
+  final training-chain estimate **5.0090 ± 0.0076**. Neither init-suppression nor an E≈7 stall
+  materialized — the network descended straight into the GS basin, from scratch, no pretraining.
+- Step-750 checkpoint, evaluated WITH the projection (overlap_check `--lz-proj-K 6`):
+  E = 5.0149 ± 0.0039, |⟨ψ|GS⟩|² = **0.9988**, holo = antiholo = 2.5e-5.
+- Same checkpoint WITHOUT the projection (raw network): E = 7.41, GS weight 0.06, antiholo 0.38 —
+  i.e. the raw network is nowhere near the GS; **the projection is load-bearing at evaluation
+  time, not just a training regularizer.** (This also bit `tools/overlap_check.py`, which
+  originally rebuilt the model unprojected — fixed with the `--lz-proj-K` flag; always match the
+  training config when loading checkpoints.)
+- Benchmark criteria: variance ↓ (5.7 → 0.06) ✓; train/val agreement ✓; guard silent ✓; energy
+  criterion |E−5|/5 ≤ 1e-3 **narrowly missed** — clean readings sit at 0.2–0.35% (the final
+  5.0090 ± 0.0076 touches 5.005 within ~1.2σ but the validation plateau is ~5.015–5.02).
+  The residual ~0.3% is a real variational gap, consistent with the architecture's known weak
+  spot (slow supervised convergence near nodal/cusp structure) — next levers: Phase-2 pair
+  features, longer run with finer lr floor, or larger hidden size.
+
+**Bottom line for the thesis: the holomorphic trap is fully circumvented from scratch by
+symmetry projection alone (2 of the 3 sanctioned ideas used: pretrain-diagnostic, projection;
+deflation never needed). From-scratch error on the canonical benchmark: 20% (old, all 746 runs)
+→ 0.2–0.3% (this run), with 99.9% GS fidelity.**

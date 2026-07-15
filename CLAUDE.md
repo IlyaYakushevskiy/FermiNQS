@@ -159,7 +159,9 @@ summary instead of trying "one more idea."
 - `tests/stage0_sanity.py` — structural ansatz checks (antisymmetry, collisions, NaN); run before
   any training after touching `src/ansatz.py`.
 - `tools/overlap_check.py <ckpt.mpack>` — energy + squared overlaps of an N=3 2D checkpoint with
-  the analytic GS, the holomorphic trap state, and its conjugate mirror.
+  the analytic GS, the holomorphic trap state, and its conjugate mirror. **Pass `--lz-proj-K`
+  matching the training config** — a checkpoint trained with projection evaluates to a completely
+  different (wrong) state without it.
 - `tools/pretrain_hf.py --N <n>` — answer-free HF/Slater pretraining (aufbau oscillator orbitals,
   SCF-coefficient hook for future interacting systems); writes an `.mpack` for
   `ansatz.pretrained_path`. `tools/pretrain_gs.py` is its N=3-only predecessor fitting the exact GS

@@ -58,11 +58,14 @@ def main():
     ap.add_argument("--hidden", type=int, default=64)
     ap.add_argument("--out", type=int, default=10)
     ap.add_argument("--samples", type=int, default=400_000)
+    ap.add_argument("--lz-proj-K", type=int, default=0,
+                    help="must match the training config's ansatz.lz_proj_K")
     args = ap.parse_args()
 
     system = System(N=N, dim=DIM, mass=1.0, potential="qho_no_inter")
     model = FermiSets(dim=DIM, N=N, rngs=nnx.Rngs(42), log=logging.getLogger(),
-                      hidden_units=args.hidden, out_units=args.out)
+                      hidden_units=args.hidden, out_units=args.out,
+                      lz_proj_K=args.lz_proj_K)
     sampler = nk.sampler.MetropolisGaussian(system.hi, sigma=0.35, n_chains=64, sweep_size=32)
     vstate = nk.vqs.MCState(sampler, model, n_samples=8192, seed=1, chunk_size=4096)
 
