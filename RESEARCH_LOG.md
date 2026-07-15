@@ -538,3 +538,25 @@ diagonalization, Slater–Condon):
    integral tables; genuine test here since HF ≠ exact with interactions). Future work.
 
 Status: arm 1 launching (run dir appended below when done).
+
+### Arm 1 result (2026-07-15, run `outputs/2026-07-15/17-30-08`) — NEGATIVE: trap survives interactions
+
+Killed at step 378/800 (user call, correct): energy flat for >100 iters.
+- Training E (last 100 iters): 7.0204, σ² ≈ 0.053. Validation (independent chain, step 350):
+  **7.0225 ± 0.0031** — i.e. the ED **first excited state 7.016**, not the GS 6.21066.
+- Overlap probes (`tools/overlap_check.py` on step_350, probes are the NON-interacting
+  states, so quantitative deformation expected): **|⟨nn|holo⟩|² = 0.849**, antiholo 0.063,
+  excx 0.170 (not independent — excx has holo/antiholo components), GS content 0.0014.
+- **Reading**: with interactions, η×symmetric is no longer an eigenstate — and the trap
+  doesn't care. From-scratch VMC converges to the interaction-deformed holomorphic state
+  (85% overlap with the λ=0 holo state, energy pinned to the interacting first-excited
+  doublet). Third system (iso QHO, aniso trap, interacting dot), same mechanism: the basin
+  is selected by the ansatz's easiest sign structure (pairwise product), NOT by the
+  Hamiltonian's spectrum or symmetry. Escape machinery is a REQUIRED production ingredient.
+- Small variance (0.053) despite not being an exact eigenstate: the deformed-holo state is
+  a near-eigenstate of the interacting H — variance alone would NOT have flagged this
+  failure. The ED reference (energy 13% off GS) is what catches it. Lesson reaffirmed:
+  never benchmark without an independent reference value.
+
+### Arm 2 (lz_proj_K=6) launched 2026-07-15, run `outputs/2026-07-15/17-57-24` (result appended below when done).
+Clean start: e_ref 6.21066 wired, step-0 validation 12.203 ± 0.050 (random init, no NaN).
