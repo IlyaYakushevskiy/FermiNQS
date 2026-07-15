@@ -624,3 +624,27 @@ C(21,6)=54,264 dets ≈ 13.5k/parity block (excitation-driven sparse build OK); 
 → ≈94k/block, heavy; run a shells-convergence study on CPU while the GPU trains System A.
 
 Status: extending stage0, then shakedown, then Stage 2 (run dirs appended below).
+
+### N=6 dot ED reference (corrected) + a tooling lesson
+
+**Correction**: the first N=6 ED readings tonight (reported transiently as "GS is a
+degenerate odd-L_z doublet — angular-momentum transition") were an ARTIFACT of piping the
+CLI through `tail -5`: the tool prints the lowest 8 levels and the filter dropped the
+first three, including the true GS. Caught by the λ→0 limit check (the mandatory E≈14
+closed-shell state was "missing" — impossible). Lesson (same family as the Slater–Condon
+sign bug): push every reference to a known limit before believing it, and never
+post-filter a reference tool's output without re-verifying the invariant.
+
+**Corrected N=6 spectrum (shells≤5, s=1)** — GS is non-degenerate, block (0,0), L_z=0
+at ALL couplings tried; no transition:
+- λ=0.01: GS 14.0318 (0,0); first excited manifold 15.030 (odd doublets). Sane λ→0 limit ✓
+- λ=0.5:  GS 15.4928 (0,0); doublet 16.396 → gap 0.90
+- λ=2.0:  GS **19.0138** (0,0); doublet 19.737 → gap 0.72 (projected-sector gap ~1.5,
+  the odd-L_z doublet is annihilated by K=6). Interaction shift +5.01 (~26%).
+- Basis convergence of the λ=2 GS: 19.667 (S=3) → 19.0363 (S=4) → 19.0138 (S=5);
+  Δ ratio ≈ 0.036 → extrapolated ≈ 19.013 ± 0.002 (~1e-4 rel). shells≤6 single-block
+  run (new `--block` CLI flag) in progress to firm this up.
+
+**System B plan**: `dot_gauss_2d_6N_lz` (e_ref from above), projected arm only — the
+unprojected control is already pinned by the 746 historical N-scaling runs (all trap at
+N(N+1)/2) and the N=3 dot arm 1; GPU-hours go to the scaling measurement itself.

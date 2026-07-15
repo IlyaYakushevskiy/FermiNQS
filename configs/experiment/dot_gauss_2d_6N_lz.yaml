@@ -1,0 +1,42 @@
+# @package _global_
+# SCALING TEST, System B — N=6 interacting dot, L_z-projected (RESEARCH_LOG 2026-07-15).
+# Trap + Gaussian repulsion lam=2, s=1. ED reference (tools/ed_dot.py, shells<=5,
+# basis-converged ~1e-4): E_GS = 19.0138, block (0,0), L_z=0, non-degenerate;
+# global gap 0.72 (odd-L_z doublet, annihilated by K=6), projected-sector gap ~1.5.
+# Same architecture/hyperparams as every other run in the scaling series.
+seed: 42
+use_wnb: False
+
+system:
+  N: 6
+  dim: 2
+  potential: dot_gauss
+  int_strength: 2.0
+  int_range: 1.0
+  e_ref: 19.0138     # regenerate: python tools/ed_dot.py --N 6 --lam 2.0 --s 1.0 --shells 5
+
+ansatz:
+  model: fermi_sets
+  hidden_units: 64
+  out_units: 10
+  pretrained_path: null
+  lz_proj_K: 6
+
+trainer:
+  vmc_iters: 400
+  lr: 0.01
+  n_samples: 4096
+  diag_shift: 0.05
+  validation: true
+  optimizer: momentum
+  momentum_beta: 0.9
+  chunk_size: 1024
+  lr_decay_rate: 0.95
+  lr_decay_steps: 100
+  pinv_rtol: 1e-12
+  pinv_atol: 1e-14
+
+sampler:
+  sigma: 0.1
+  n_chains: 512
+  sweep_size: 32

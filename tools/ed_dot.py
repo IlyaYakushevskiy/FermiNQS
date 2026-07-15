@@ -26,6 +26,7 @@ Usage:
 import argparse
 import itertools
 import math
+import sys
 
 import numpy as np
 from scipy.sparse import lil_matrix
@@ -216,6 +217,8 @@ if __name__ == "__main__":
     ap.add_argument("--lam", type=float, default=2.0)
     ap.add_argument("--s", type=float, default=1.0)
     ap.add_argument("--shells", type=int, default=6)
+    ap.add_argument("--block", default=None,
+                    help="diagonalize only this parity block, e.g. '0,0' (for big bases)")
     ap.add_argument("--validate", action="store_true")
     args = ap.parse_args()
 
@@ -223,6 +226,17 @@ if __name__ == "__main__":
         validate(args.lam, args.s)
     else:
         ed = DotED(args.N, args.lam, args.s, args.shells)
+        if args.block is not None:
+            px, py = (int(t) for t in args.block.split(","))
+            dets = ed.block_dets(px, py)
+            H = ed.build_h(dets)
+            k = min(3, H.shape[0] - 2)
+            vals = np.sort(eigsh(H, k=k, which="SA", return_eigenvectors=False))
+            print(f"N={args.N} lam={args.lam} s={args.s} shells<={args.shells} "
+                  f"block ({px},{py}): {len(dets)} dets")
+            for E in vals:
+                print(f"  E = {E:.8f}")
+            sys.exit(0)
         levels = ed.ground_state()
         print(f"N={args.N} lam={args.lam} s={args.s} shells<={args.shells} "
               f"(M={ed.M} orbitals)")
