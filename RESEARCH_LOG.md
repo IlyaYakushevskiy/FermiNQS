@@ -560,3 +560,35 @@ Killed at step 378/800 (user call, correct): energy flat for >100 iters.
 
 ### Arm 2 (lz_proj_K=6) launched 2026-07-15, run `outputs/2026-07-15/17-57-24` (result appended below when done).
 Clean start: e_ref 6.21066 wired, step-0 validation 12.203 ± 0.050 (random init, no NaN).
+
+### Arm 2 result — POSITIVE: projection solves the interacting dot from scratch
+
+400 iters completed clean (no NaN, no guard trips). ED reference E_GS = 6.21066.
+- Trajectory: 12.20 (step 0) → 6.269 (step 50) → plateau ~6.212–6.225 from step ~100.
+- Final training-chain estimate: **6.2165 ± 0.0044** (rel. excess **9.4e-4**, within 1.3σ
+  of ED). Trailing-100 training mean 6.2164, σ² ≈ 0.087. Validation plateau (independent
+  chain) 6.212–6.225 ± 0.004 — train/val agree ✓.
+- Step-350 checkpoint, `overlap_check --lz-proj-K 6`: holo = antiholo ≈ 1e-5 (trap
+  annihilated ✓), |⟨ψ|gs_noninter⟩|² = 0.876 — the 12% deficit IS the interaction
+  deformation (probe is the λ=0 GS; interaction shift is 24% of E). NOTE: the tool's
+  energy line uses the NON-interacting H — ignore it for dot checkpoints; the energy
+  test is the ED comparison above. Follow-up tooling idea: overlap vs the ED
+  wavefunction itself (expand ED GS on the oscillator basis, evaluate on MC samples).
+- **A/B, same seed/hyperparams, only lz_proj_K differs: 0 → converges to the FIRST
+  EXCITED state 7.0225 (deformed-holo trap); 6 → GS at 0.09% rel. error.** With the QHO
+  result (5.009/5.015, fidelity 0.9988): symmetry projection is established as the
+  from-scratch trap escape for BOTH non-interacting and interacting rotationally
+  symmetric systems. The energy criterion 1e-3 is MET on the final training estimate
+  here (validation plateau reads ~2e-3); the residual is the same architecture-level
+  variational gap seen on the QHO.
+- Publication figures: `plots/plot_publication.py` (new reusable two-panel script:
+  zoomed energy + log rel-error), `plots/qho_lz_N3_convergence_pub.png`,
+  `plots/dot_gauss_lz_N3_convergence_pub.png`.
+
+**Conceptual framing settled with the aniso result (for the thesis write-up): the trick
+as implemented is projection onto the trivial rep of the DISCRETE rotation group C_K —
+it needs [H, R(2π/K)] = 0, not full U(1) symmetry. The general principle is symmetry
+projection onto any sector that separates the GS from the ansatz's lazy states: for the
+aniso trap, y-parity does this (GS det{1,x,y} has (Σnx,Σny) parity (1,1); the trap
+det{1,x,x²} has (1,0)) — a ×2-cost reflection average, UNTESTED (idea, not run). Systems
+with no usable symmetry at all (disorder, generic geometry) still need pretraining.**
