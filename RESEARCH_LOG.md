@@ -965,3 +965,35 @@ multi-seed replication is the next thing to check before calling this settled.
 Going forward: **all work in this project is tracked in `QUEUE.md`** (explicit prioritized
 backlog, top-to-bottom) — check it before starting anything, and move finished items here
 with results rather than leaving them only in the queue.
+
+---
+
+## 2026-07-18 — K-vs-N margin ablation (P0), interrupted by planned shutdown
+
+Launched the N=6 K=3/K=4 arms (QUEUE.md P0) as a chained background job. User shut the
+machine down mid-run; both jobs were killed cleanly on request (`kill -9`, confirmed dead,
+GPU back to idle). Status, so the next session can resume without re-deriving anything:
+
+- **K=3 (margin=0) completed all 500/500 iters** (`outputs/2026-07-18/20-36-14`, console
+  log `outputs/n6_lz_k3_console.log`, complete). Final energy **18.198 − 0.061j ± 0.065**
+  [σ²≈17]. **This contradicts the naive prediction** of "total failure, reproduces the
+  E=21 trap" — the validation trace (26.0 → 21.1 → 20.5 → 20.0 → 21.2 → 19.5 → 18.6 → 18.5
+  → 18.2) shows steady descent with no trap-energy plateau at all, landing close to
+  (but not at) where the K=6 run's shorter runs have gotten. **Unresolved — do not treat
+  as a settled result.** Candidate explanations for tomorrow: margin=0 only says d=0 (the
+  trap itself, L_z=15) survives projection, but says nothing about d=1,2,... — the K=3
+  sector might still exclude enough of the broader lazy family that the run isn't as
+  unconstrained as the "total failure" framing assumed; or this is simply the same
+  "N=6 needs more iterations" effect seen in every other N=6 run so far, and it hasn't had
+  time to fully settle into the L_z=15 trap specifically. Needs a careful reread of
+  `tools/lz_margin.py`'s margin definition against what "failure" should actually look
+  like before drawing conclusions.
+- **K=4 (margin=1) killed mid-run at iter 353/800** (`outputs/2026-07-18/21-48-29`,
+  checkpoint `checkpoints/step_350.mpack`, console log `outputs/n6_lz_k4_console.log`,
+  partial). Energy was climbing (20.2→20.7) with falling variance (σ² 7.9→5.0) at kill
+  time — inconclusive, needs to resume from the checkpoint or rerun.
+
+**Next session**: resolve the K=3 interpretation puzzle first (it changes how the whole
+ablation table should be framed), then resume/complete K=4, then write up the full
+K-vs-N table (K=3/4/6 at N=6) before moving to QUEUE P1. Full detail and exact resume
+command in QUEUE.md P0.

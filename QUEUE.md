@@ -28,19 +28,38 @@ scale with N (checked to N=210), but a FIXED K is not safe for all N (K=6 fails 
 at N=21,28,36,45...). N=6 conveniently gives a same-system A/B/C test for free (K=6
 margin=3 already validated; K=3 or K=5 margin=0 predicted total failure; K=4 margin=1 thin).
 
-- [ ] **IN PROGRESS (2026-07-18, GPU, chained background job)**: `qho_fermisets_2d_6N_lz_k3`
-      (K=3, 500 iters, predicted: fails, reproduces E→21 trap) running now, then
-      `qho_fermisets_2d_6N_lz_k4` (K=4, 800 iters, predicted: thin margin, slower/noisier
-      but should still reach 14.0) launches automatically after. Same architecture/
-      hyperparams as the validated K=6 run (`qho_fermisets_2d_6N_lz.yaml`). Console logs
-      `outputs/n6_lz_k3_console.log`, `outputs/n6_lz_k4_console.log`; run dirs land under
-      `outputs/2026-07-18/`. Launched via `setsid nohup ... & disown` — check
-      `ps aux | grep main.py` and the console logs to confirm still alive if resuming this
-      session later (a prior background job silently died mid-run in an earlier session,
-      cause not fully diagnosed — treat backgrounded jobs as needing a liveness check, not
-      assumed-persistent). When both land: turns the modular-arithmetic argument into an
-      empirical ablation table (K vs. success/failure vs. predicted margin) — good,
-      concrete thesis content — then move to P1.
+- [ ] **PAUSED 2026-07-18 22:57 (user shut down machine, jobs killed on request)** — status:
+      - `qho_fermisets_2d_6N_lz_k3` (K=3, margin=0) **completed all 500/500 iters cleanly**
+        (`outputs/2026-07-18/20-36-14`). Final: **18.198−0.061j ± 0.065** [σ²≈17].
+        **Does NOT match the naive prediction** ("total failure, reproduces E→21 trap") —
+        it settled around 18, well below the trap (21) and well above GS (14), with no
+        sign of the trap-energy plateau at all in the validation trace (26.0 → 21.1 →
+        20.5 → 20.0 → 21.2 → 19.5 → 18.6 → 18.5 → 18.5 → 18.2, i.e. monotonic-ish descent
+        very similar in shape to the K=6 run's own trajectory). **Needs interpretation
+        tomorrow, not yet understood**: margin=0 means L_z=15 (the trap) technically
+        survives the K=3 projection sector, so the naive "total failure" prediction assumed
+        the trap would be reproduced exactly — instead something else happened. Possible
+        explanations to check: (a) K=3 still excludes OTHER lazy-family members (d=1,2 etc.
+        survive too since margin=0 only describes d=0), so the sector isn't as unconstrained
+        as assumed and partial projection benefit still applies; (b) 500 iters may just not
+        be enough to fully settle into L_z=15 specifically (same "N=6 needs more iters"
+        pattern seen in the unprojected scaling runs); (c) re-derive margin(N,K) logic —
+        double check it's not off-by-one for what "total failure" should look like in
+        practice. Do not update the thesis narrative from this run until this is resolved.
+      - `qho_fermisets_2d_6N_lz_k4` (K=4, margin=1) **killed mid-run at iter 353/800**
+        (`outputs/2026-07-18/21-48-29`, checkpoint `step_350.mpack` saved). Trend at kill
+        time: energy climbing 20.2 → 20.6-20.7 over the last ~10 iters, σ² falling
+        (7.9→5.0) — inconclusive, nowhere near settled. **Resume tomorrow** via
+        `ansatz.pretrained_path=.../21-48-29/checkpoints/step_350.mpack`, remaining
+        ~450 iters (or just relaunch from scratch if a clean run is preferred — cheap
+        either way for N=6/K=4).
+      - Console logs preserved: `outputs/n6_lz_k3_console.log` (complete),
+        `outputs/n6_lz_k4_console.log` (partial, ends at iter 353).
+      - **Next session**: (1) resolve the K=3 interpretation question above, (2) resume/
+        rerun K=4 to completion, (3) only then write the K-vs-N ablation table and move to
+        P1. Lesson reconfirmed: `setsid nohup ... & disown` does NOT survive a machine
+        shutdown (obviously) — always expect to relaunch from checkpoint after a planned
+        machine-off, this is normal, not a bug.
 
 ---
 
