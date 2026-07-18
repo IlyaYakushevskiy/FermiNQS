@@ -17,6 +17,9 @@ import jax.numpy as jnp
 #for Adam
 import optax
 
+from src.holomorphy_penalty import HolomorphyPenalty
+from src.deflation_penalty import DeflationPenalty
+
 
 class BlowupGuard:
     """
@@ -96,7 +99,16 @@ class Trainer:
         tune_sigma: bool = True,
         auto_rollback: bool = True,
         rollback_margin: float = 2.0,
-        max_retries: int = 2
+        max_retries: int = 2,
+        holo_penalty: bool = False,
+        holo_penalty_mu0: float = 0.0,
+        holo_penalty_decay: float = 1.0,
+        holo_penalty_lr: float = 0.0,
+        deflation_penalty: bool = False,
+        deflation_penalty_mu0: float = 0.0,
+        deflation_penalty_decay: float = 1.0,
+        deflation_penalty_lr: float = 0.0,
+        deflation_penalty_n_ginibre: int = 2000,
 
     ):
         self.sampler = sampler
@@ -127,7 +139,16 @@ class Trainer:
         self.auto_rollback = auto_rollback
         self.rollback_margin = rollback_margin
         self.max_retries = max_retries
-        
+        self.holo_penalty = holo_penalty
+        self.holo_penalty_mu0 = holo_penalty_mu0
+        self.holo_penalty_decay = holo_penalty_decay
+        self.holo_penalty_lr = holo_penalty_lr
+        self.deflation_penalty = deflation_penalty
+        self.deflation_penalty_mu0 = deflation_penalty_mu0
+        self.deflation_penalty_decay = deflation_penalty_decay
+        self.deflation_penalty_lr = deflation_penalty_lr
+        self.deflation_penalty_n_ginibre = deflation_penalty_n_ginibre
+
     def validation_callback(self, step: int , log_data : dict, driver : nk.driver.AbstractVariationalDriver) -> bool: 
         # E.g., extracts "outputs/2026-04-27/17-17-34"
         working_dir = os.path.dirname(self.log_path)
@@ -212,6 +233,22 @@ class Trainer:
             callbacks = [guard]
             if self.validation:
                 callbacks.append(self.validation_callback)
+            if self.holo_penalty:
+                # N*dim inferred from the model's own N, dim attrs (FermiSets, dim=2 only)
+                penalty = HolomorphyPenalty(
+                    template_model=self.model, N=self.model.N,
+                    mu0=self.holo_penalty_mu0, decay=self.holo_penalty_decay,
+                    aux_lr=self.holo_penalty_lr, log=self.log,
+                )
+                callbacks.append(penalty)
+            if self.deflation_penalty:
+                penalty2 = DeflationPenalty(
+                    template_model=self.model, N=self.model.N,
+                    n_ginibre=self.deflation_penalty_n_ginibre,
+                    mu0=self.deflation_penalty_mu0, decay=self.deflation_penalty_decay,
+                    aux_lr=self.deflation_penalty_lr, log=self.log,
+                )
+                callbacks.append(penalty2)
 
             gs_driver.run(n_iter=self.vmc_iters, out=loggers, callback=callbacks)
 

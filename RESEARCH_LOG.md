@@ -648,3 +648,320 @@ at ALL couplings tried; no transition:
 **System B plan**: `dot_gauss_2d_6N_lz` (e_ref from above), projected arm only — the
 unprojected control is already pinned by the 746 historical N-scaling runs (all trap at
 N(N+1)/2) and the N=3 dot arm 1; GPU-hours go to the scaling measurement itself.
+
+**shells≤6 refinement (2026-07-16, block (0,0), 94,308 dets)**: E_GS = **19.00381**;
+next levels 20.503, 20.594. Convergence sequence 19.667 (S3) → 19.0363 (S4) →
+19.0138 (S5) → 19.0038 (S6): deltas −0.0225, −0.0100, ratio ≈ 0.44 → geometric tail
+≈ −0.008, extrapolated E_∞ ≈ 18.996(4). The earlier "≈19.013 ± 0.002" extrapolation
+(from the S4→S5 delta alone) was too optimistic — the delta sequence is NOT yet in its
+asymptotic regime at S5. `e_ref` in `dot_gauss_2d_6N_lz.yaml` updated to the S6
+variational value 19.0038; any VMC-vs-ED agreement claim below ~5e-4 relative is
+reference-limited and must say so.
+
+**System A Stage 2, first 500 iters (2026-07-16, `outputs/2026-07-16/09-32-11`)**:
+NOT converged in budget — final validation 18.513 ± 0.061 vs exact 14.0 (rel. err 0.32),
+σ² ≈ 10–12 throughout. BUT no plateau: validations 20.6 → 20.2 (steps 50–150, slow
+phase) → 19.8 → 19.6 → 18.8 → 18.5 (steps 300–450, accelerating), train E dropped
+19.2 → 18.5 over the final 10 steps alone. Energy sits between GS (14) and the killed
+trap (21); the slow phase at ~20.2–20.5 matches the |L_z|=6 leakage-shelf estimate
+(E ≳ 20) before the descent resumed. Interpretation: iteration budget, not basin —
+N=3 converged in ≲400 iters, N=6 needs more (a scaling observation in itself:
+iterations-to-convergence grows with N). Train/val agree (18.35 ± 0.05 vs 18.51 ± 0.06,
+R̂ ≈ 1.07–1.09, acceptance 0.64); no safe-solver zero-outs observed. Action: warm-start
+continuation from `step_450.mpack`, +500 iters, same config (budget extension, not a
+stop-rule adjustment). Run dir appended below when done.
+
+**System A continuation (`outputs/2026-07-16/11-45-06`, +500 iters from the above
+checkpoint)**: completed cleanly (all 500 iters, 10/10 validations logged). Smooth
+handoff, no restart shock (step-0 val 18.556 ≈ prior final 18.513 — momentum/lr-schedule
+reset costs nothing here because SR/minSR is curvature-based, not momentum-driven).
+Continued descent, still noisy: 18.6 → 18.8 → 18.3 → 19.1 → 19.1 → 19.6 → **17.85 → 17.54
+→ 17.67 → 17.66** (final). Not converged (target 14.0) but trending down, no plateau —
+consistent with "N=6 just needs a bigger iteration budget than N=3," not a basin problem.
+
+**System B (interacting dot, N=6) cross-system warm start — `outputs/2026-07-16/14-08-56`**:
+deliberately initialized from the System-A (non-interacting) checkpoint above (same
+symmetry block (0,0), justified by the N=3 precedent that the interacting GS is
+adiabatically connected to the non-interacting closed shell). Step-0 validation 22.316 —
+this is NOT a restart bug, it's the interaction energy: 17.66 (non-interacting energy of
+that state) + ~5 (expected interaction shift, matches the dot's own +5.01 shift measured
+at N=3) ≈ 22.3, dead on. Descended 22.3 → 21.2 → 21.0 → 20.9 over 150 iters (heading
+toward e_ref 19.0038) when the process was killed by the session ending (not a crash —
+no OOM, no NaN, just an orphaned/reaped background job). **Operational fix applied**:
+relaunched from `step_150.mpack` via `nohup ... & disown` (`outputs/dot_6N_lz_cont2_console.log`),
+so it now survives session boundaries. Lesson for this repo: long training runs launched
+inside a Claude Code turn must be `nohup`+`disown`'d explicitly, or a session boundary
+silently kills them with no error — always suspect this first (check `ps aux` +
+last-checkpoint mtime) before assuming a training bug when a run "goes quiet."
+
+**System B final result** (`outputs/2026-07-16/17-05-18`, resumed run, 850 further iters,
+cumulative ~1000 from scratch): **20.187 ± 0.048** vs e_ref 19.0038 (rel. err ~6.2%), no
+NaN/guard trips for the whole run. Same reading as System A: not converged in this
+budget, no plateau, purely an iterations-needed-at-N=6 question — projection continues to
+do its job (no sign of trap re-capture), this just needs more steps than N=3 did.
+
+---
+
+## 2026-07-16 — Does the L_z-projection trick's cost scale with N? (K vs N, analysis + plan)
+
+**User challenge**: if the projection order K must grow with N to keep excluding the
+lazy-state family as N grows, the claimed O(K·N²) cost of FermiSets+projection collapses
+toward O(N³) and the complexity argument against Slater determinants (O(N³) `slogdet`)
+is moot. This needed settling with numbers, not intuition.
+
+**Setup**: the trap family sits at L_z = N(N−1)/2 + d (d = 0,1,2,... indexes which
+symmetric/bosonic dressing is applied to the Vandermonde, see the Laughlin-identification
+entry below). Mod-K projection keeps only L_z ≡ 0 (mod K); define margin(N,K) = smallest
+surviving d. margin = 0 means projection is a complete no-op (trap untouched).
+
+**Result** (`tools/lz_margin.py`, exhaustive over the closed-shell/magic-number sequence
+N = 3,6,10,...,210 and K up to 200): **for a fixed target margin (checked up to margin
+≥ 10), the smallest K that achieves it does NOT grow with N** — it fluctuates in a bounded
+range (K≈4–16 for margin≥3, up to N=210) with no upward trend. So the O(K·N²) complexity
+claim survives asymptotically: K is O(1) in N, not O(N).
+
+**The catch**: a single FIXED K is not safe for all N. K=6 (used for every run so far)
+gives margin 0 — total projection failure, trap fully intact — at N = 21, 28, 36, 45, 105,
+120 (it only "worked" at N=3, N=6 by landing on margin=3 both times, not because 6 is
+special). **K must be chosen per N** via the cheap modular check in `tools/lz_margin.py`
+(`choose_K(N, margin_target)`), not hardcoded once. All future scaling-series configs
+should call this rather than copy-pasting `lz_proj_K: 6`.
+
+**Convenient side effect for N=6 specifically**: since L_z(trap) = 15 for N=6, K=3 and
+K=5 both divide 15 exactly → margin 0 at the SAME N we already have a clean K=6 (margin
+3) baseline for. This gives a same-N, same-architecture, same-hyperparameter A/B/C
+falsification test of the whole margin theory, no new system needed:
+- K=6 (margin 3): already validated — descends toward 14.0, no plateau (see above).
+- K=4 (margin 1, thin): predicted marginal — should still find the GS but possibly
+  slower/noisier (thin protected gap).
+- K=3 (margin 0): predicted total failure — should reproduce the historical unprojected
+  trap plateau (E→21 for N=6), indistinguishable from `lz_proj_K: 0`.
+
+**Plan (next, queued after the current GPU job frees up — do not contend with it)**:
+1. Run the K=3 / K=4 controlled comparison at N=6 QHO (short budget, matching the
+   Stage-1/Stage-2 shakedown lengths already used) — confirms or falsifies the margin
+   model against real training dynamics, not just modular arithmetic.
+2. Empirical wall-clock scaling sweep: forward-pass-only timing (no training) for
+   FermiSets+projection (K chosen per-N via `choose_K`) vs a new Slater-determinant
+   baseline (`slogdet`, O(N³)), N = 3, 6, 10, 15, 20, 30 — pins the actual crossover point,
+   not just the asymptotic exponent (constant prefactors matter at the N we can afford).
+3. New Slater baseline ansatz (bare NN orbitals + `slogdet`, no backflow first — isolates
+   "does antisymmetry-by-construction avoid the holomorphic trap at all" cleanly) for the
+   accuracy comparison at N=3, N=6, and the interacting dot.
+4. Note for the write-up either way: Slater gets L_z symmetry for free (choose orbitals
+   with definite angular momentum, zero extra cost) — FermiSets pays O(K) for the same
+   guarantee. That asymmetry stands regardless of what the K(N) scaling numbers say.
+
+---
+
+## 2026-07-16 (later) — Holomorphy-defect: penalizing the LLL/Laughlin state without symmetry
+
+**Motivation** (user question): the L_z trick needs rotational symmetry AND (per the
+K-vs-N analysis above) needs K re-derived per N. For generic geometries with no usable
+symmetry at all, is there a way to push the optimizer off the holomorphic trap that needs
+neither a symmetry sector nor a known exact target wavefunction?
+
+**Idea**: `FermiSets` writes log psi = (combination of ±eta branches) + Gaussian. Write
+psi_nn for the part before the Gaussian envelope (the envelope is common to every state,
+itself non-holomorphic since |z|^2 depends on zbar, and must be factored out or it
+swamps the signal). h = psi_nn / eta is always permutation-SYMMETRIC (both flip sign
+under any swap) for ANY wavefunction, trapped or not. The trap family specifically has h
+HOLOMORPHIC (depends on z, not zbar) — literally the lowest-Landau-level / Laughlin m=1
+family (any antisymmetric holomorphic function of N complex variables factors uniquely as
+Vandermonde(z) * symmetric-polynomial(z), a classical algebraic fact). This is Fu's own
+flagged hard case (psi/eta non-smooth at the true GS) turned into a differentiable order
+parameter, and it doesn't need rotational symmetry or a known target — only the
+architecture's own eta.
+
+**D(x) = sum_i |d(log h)/d zbar_i|^2** (Wirtinger anti-holomorphic derivative, i.e. the
+Cauchy-Riemann violation), computed via ordinary real-valued forward-mode autodiff.
+`tools/holomorphy_defect.py`. Important implementation subtlety found while building it:
+must divide by the IDEAL (unregularized) complex Vandermonde `prod(z_i - z_j)`, NOT the
+architecture's own bounded `eta_antisymmetric` (`diff/sqrt(|diff|^2+a^2)`) — the
+regularization factor is itself non-holomorphic away from collisions (depends on |diff|^2),
+so dividing by the network's own eta contaminates D with that mismatch rather than
+measuring the network's actual holomorphy. Second subtlety: D must be evaluated on samples
+drawn from the checkpoint's own |psi|^2 (via its Metropolis sampler), not a naive N(0,1)
+proposal — the latter visits near-collision configurations (where log(eta_ideal) is
+genuinely singular) far more often than the physical distribution does, producing huge
+spurious outliers (max ~1.6e4 vs ~16 once switched to physical sampling) that are an
+artifact of the reference function, not of the network.
+
+**Validation against 4 existing checkpoints** (median D, physical |psi|^2 samples, energy
+sanity-checked against each checkpoint's known value first — all matched to <0.01%):
+| checkpoint | E | known content | median D |
+|---|---|---|---|
+| isotropic N=3 trap | 6.00 | 85% holo (complex Vandermonde) | **0.29** |
+| dot N=3 arm-1 trap (interacting) | 7.02 | 85% holo (deformed) | **0.27** |
+| aniso N=3 trap | 6.75 | 99.9% excx (REAL Vandermonde) | 0.91 |
+| N=3 solved-GS checkpoint, raw unprojected net | 7.43 (raw, not the physical 5.0) | not a pure eigenstate either way | 1.05 |
+
+Reading: D cleanly and strongly separates the two COMPLEX-Vandermonde-family traps
+(isotropic + interacting-dot, ~0.27-0.29) from everything else tested (~3-4x higher). It
+is a real but much weaker discriminator for the REAL-Vandermonde (aniso) trap family,
+consistent with it being defined against the complex-Vandermonde reference specifically
+— state this precisely in any writeup, it is not a universal "is this ANY kind of
+Vandermonde-type trap" detector as originally hoped, but it does cleanly detect the LLL
+family and its interacting-dot deformation.
+
+**Training-time penalty** (`src/holomorphy_penalty.py`, `HolomorphyPenalty` driver
+callback): annealed gradient-ASCENT step on mean(D) over the current training-chain
+samples, added on top of the ordinary SR step. Config: `trainer.holo_penalty{,_mu0,_decay,_lr}`.
+Implementation note for future-self: netket's nnx integration does NOT alias the passed-in
+model object (`model is vstate.model` → False after `MCState(...)` construction) —
+parameter updates from a custom callback must go through `vstate.parameters` (a plain
+dict matching `nnx.State.to_pure_dict()` / `.replace_by_pure_dict()`), not by mutating the
+original nnx.Module in place.
+
+**Calibration (CPU shakedowns, N=4, 6-8 iters, no L_z projection)**: `holo_penalty_lr=0.003`
+(with `mu0=1.0`) overpowers the SR step — energy blew up 12.1→29.1 in 6 steps while D
+climbed 2.0→8.9 (confirms the ascent mechanism works exactly as designed, just too
+strong). `holo_penalty_lr=0.0001` kept energy descending normally (12.1→10.5 over 8
+steps, matching the ordinary early-training trend) with D roughly flat (~1.6-2.2) — a
+gentle-nudge regime, not yet demonstrated to break the historical E=10 plateau (that
+needs the full run, in progress — see QUEUE.md P0).
+
+**Result: NEGATIVE, but precisely diagnosed — v1 (differential) penalty defeated by
+degenerate remixing, not by weak calibration.** Full run (`outputs/2026-07-16/18-04-02`,
+N=4, no L_z projection, `holo_penalty_lr=0.0001`) plateaued CLEANLY at **E=10.00**
+(σ² 0.15→0.032, R̂≈1.02-1.07 by step ~350-400) — exactly the historical trap energy, not
+an escape. But D climbed to ~1.8-3 (elevated, not stuck at the pure-trap value 0.29), so
+the penalty was doing something. Checked the "opposite chirality" defect D′ = sum_i
+|d(log h)/dz_i|² (same construction, wrong-way Wirtinger derivative, ~0 for a purely
+ANTIholomorphic state): **D ≈ D′ ≈ 1.87 at the plateau — equal, not one-sided.**
+
+Mechanism: the non-interacting isotropic QHO has an exact z↔z̄ (reflection) symmetry, so
+the holomorphic trap det{1,z,...,z^(N-1)} has an EXACTLY DEGENERATE antiholomorphic
+mirror det{1,z̄,...,z̄^(N-1)} at the identical energy N(N+1)/2. Any linear combination
+α·holo + β·antiholo is ALSO an exact eigenstate at that same energy with zero extra
+variance (superposition of two degenerate eigenstates). The penalty pushed D up by
+sliding along this degenerate 2-state manifold — cheap for the optimizer (zero energy
+cost) — rather than by finding genuinely lower-energy 2D structure.
+
+**Upgrade attempt: Laplacian (mixed Wirtinger 2nd derivative) — also negative, more
+decisively.** log h harmonic (Laplacian ≡ 0) is a standard fact for BOTH pure chiralities
+individually, so the mixed second derivative L(x) = sum_i |d²(log h)/(dz_i dz̄_i)|² —
+equal to (1/4)∇²(log h) per particle, computed via `jax.hessian`, added as
+`laplacian_defect_batch` in `tools/holomorphy_defect.py` — looked like a strictly higher-
+order, harder-to-game probe. Sanity check on a toy example first: log(2x) = log(z+z̄) has
+NONZERO Laplacian (−1/x²), confirming L is not trivially zero for simple superpositions
+either, so it was tested with appropriate skepticism, not assumed correct. Measured
+(median, physical/generic samples): pure trap L=0.19; N=4 plateaued state L=0.90;
+**analytic true GS det{1,x,y} itself: L=0.84, D=1.38 (on generic N(0,1) samples, not
+|GS|² — a rough magnitude check, not apples-to-apples, but decisive at this scale)** —
+the plateaued (wrong-energy) state scores AS HIGH AS the actual GS on both D and L.
+**Conclusion: no local differential quantity (1st or 2nd order) can distinguish genuine
+GS-ward progress from remixing inside a degenerate manifold, because the pathological
+set is not a point (the pure holomorphic trap) but an entire linear SUBSPACE — a local
+derivative can be driven arbitrarily high just by moving within that subspace.** This
+generalizes beyond the differential-penalty idea specifically: ANY potential with a
+reflection symmetry (which includes the interacting dot — Gaussian repulsion depends
+only on |z_i−z_j|², reflection-symmetric) has this same degenerate-mirror escape hatch
+available to its own deformed-holo trap.
+
+Run killed per user instruction once this was understood (was healthy, no crash — just
+confirmed to be plateaued on the wrong physics). `holomorphy_defect.py`'s D and L are
+kept as diagnostics (useful for confirming "is this checkpoint near the LLL family at
+all"), just not usable alone as a training force.
+
+### v2: projector/deflation against the KNOWN {holo, antiholo} subspace (GLOBAL, not local)
+
+Fix: go back to the original Phase-3 deflation idea (2026-07-14 coding plan, never
+implemented until now), generalized from one fixed target to the known DEGENERATE PAIR.
+`src/deflation_penalty.py`, `DeflationPenalty`: standard Choo–Carleo overlap estimator
+|⟨ψ|φ⟩|²/(⟨ψ|ψ⟩⟨φ|φ⟩) = r1·r2, r1 = E_{x~|ψ|²}[φ(x)/ψ(x)] (current training samples),
+r2 = E_{y~|φ|²}[ψ(y)/φ(y)], summed over φ ∈ {holo, antiholo}. This is a GLOBAL quantity
+— zero only when ψ has no component along EITHER basis vector — so it can't be satisfied
+by remixing within the pair the way D/L could.
+
+y-samples for BOTH holo and antiholo come for free and exactly, no MCMC: |holo(x)|² ·
+exp(−Σ|z_i|²) is precisely the eigenvalue joint density of the complex Ginibre ensemble
+(`sample_ginibre_positions`, N×N i.i.d. standard-complex-Gaussian matrix, `np.linalg.eigvals`)
+— a textbook random-matrix-theory fact, and |antiholo|²=|holo|² exactly (verified
+numerically: log(holo/antiholo) has zero real-part variance at every sampled point,
+since antiholo ≡ conj(holo) as functions), so the same Ginibre draw serves both terms.
+
+Validated before use: overlap penalty value = 1.02 at the known 85%-holo N=3 trap
+checkpoint (sensible — close to 1, consistent with dominant lazy-subspace content),
+0.48 at a known non-trap state (RESEARCH_LOG "solved-GS checkpoint, raw unprojected
+net", energy 7.4-7.5, not a pure eigenstate either way) — correctly and substantially
+discriminates, unlike D/L on the same two states.
+
+Same caveat as v1's implementation: the x-side gradient (through the current training
+samples) omits the score-function/log-derivative correction term that accounts for
+|ψ|² itself depending on parameters (the term netket's own VMC energy gradient includes
+internally) — an approximate/heuristic auxiliary force, not an exact overlap gradient.
+Acceptable because the actual physics is still carried by the untouched, exact SR energy
+gradient; this only needs to point roughly away from the known lazy pair.
+
+Calibration (CPU shakedown, N=4, 8-10 iters, no projection): `deflation_penalty_lr=0.001`
+too weak — overlap climbed 0.32→0.65 over 8 iters (the natural early-training pull toward
+the trap outpaces it). `0.01` visibly suppresses it (down to ~0.002-0.37, noisy, trending
+down) while energy still descends (noisier than unpenalized: 12.09→11.42 over 10 iters
+with a temporary rise to 12.75, but no blow-up).
+
+**Status**: full run launched, N=4 isotropic QHO, no L_z projection, from scratch,
+`qho_fermisets_2d_4N_deflate.yaml`, `deflation_penalty_lr=0.01`, `n_ginibre=2000`. CPU
+(GPU occupied by the N=6 dot job), reduced resources (n_samples=1024/n_chains=128 vs
+canonical 4096/512) — run dir `outputs/2026-07-16/19-36-59`, console log
+`outputs/n4_deflate_cpu_console.log`. Watch both `Energy` and `Deflation_overlap` in
+`optimization_results.log`. Historical baseline to beat: E→10.03-10.08. Result appended
+below when done. If this ALSO plateaus at E=10 regardless of overlap suppression, that
+would be a stronger result still — evidence the E=10 degenerate manifold is bigger than
+just span{holo, antiholo}, or that this class of auxiliary-force approach can't
+compete with the SR step's early pull at any calibratable strength.
+
+**RESULT: POSITIVE — first from-scratch escape of the holomorphic trap with NO L_z
+projection and NO known exact target wavefunction.** Full run
+(`outputs/2026-07-16/19-36-59`, 800 iters, N=4 isotropic QHO, `lz_proj_K` absent,
+`deflation_penalty_lr=0.01`, `n_ginibre=2000`, CPU, reduced resources
+n_samples=1024/n_chains=128 vs canonical 4096/512):
+
+- **Final energy 8.969 ± 0.067** — historical no-penalty/no-projection baseline is
+  10.03–10.08 (746 runs, dead stop, never moves); exact GS = 8.0 (open shell, degenerate,
+  so exact convergence isn't expected the way the closed-shell benchmarks show it, but
+  landing at 8.97 from a 10.0 trap is unambiguous escape, not noise).
+- Trajectory by 100-iter chunks (mean E / mean overlap): 10.60/0.32 → 10.19/0.62 →
+  10.45/0.50 → 10.48/0.43 → 10.40/0.40 → 10.27/0.25 → **9.92/0.21 → 9.50/0.17** — energy
+  and overlap move together and NEITHER has plateaued by step 800; likely still improving
+  with more iterations/budget.
+- The noisy oscillation seen mid-run (iters ~100-400, energy bouncing 10.0-11.0, overlap
+  swinging 0.02-0.82) was NOT stalling — it was the fight being won gradually; the
+  back-half of the run shows a clean, monotonic-in-aggregate descent once the state
+  started breaking free of the degenerate subspace.
+
+**Bottom line for the thesis**: the L_z projection trick is NOT the only escape route.
+A global deflation penalty against the ANALYTICALLY KNOWN lazy subspace (no rotational
+symmetry required to define it, no exact ground state needed) also works, from scratch,
+on the historically-hardest unprojected case. The two escapes are not redundant:
+projection is cheaper (no extra samples, no auxiliary gradient) and gives a hard
+guarantee (the lazy states are exactly unrepresentable inside the projected sector);
+deflation is softer (an annealed nudge, needs calibration, only proven so far at N=4/one
+seed) but generalizes to systems where no useful discrete symmetry exists to project onto
+— genuinely disordered or generic-geometry cases, where projection has no analogue but
+the "known lazy state" (whatever the ansatz's easy family turns out to be for that
+geometry) may still be identifiable and Ginibre-samplable or otherwise tractable.
+
+**Next steps** (see QUEUE.md P0): (1) let it run longer / at canonical GPU resources to
+see where it settles — still descending at step 800, unclear if it reaches near-8 or
+plateaus somewhere above it; (2) test on the anisotropic trap and the interacting dot,
+where the lazy family's analytic form differs (real Vandermonde / deformed-holo
+respectively) — the dot's Gaussian interaction preserves the same reflection symmetry so
+its own deformed-holo trap should have an analogous degenerate mirror, but the
+interaction MOVES the exact energy and shape of holo/antiholo, so `log_holo`/`log_antiholo`
+would need re-deriving (they're no longer exact eigenstates there, same caveat as
+`overlap_check.py`'s existing probes for that system); (3) multi-seed replication before
+treating N=4→8.97 as more than a single data point.
+
+**Canonical-resource confirmation (2026-07-17, `outputs/2026-07-16/21-12-11`)**: same
+config, full GPU (n_samples=4096, n_chains=512), extended to 1500 iters since the CPU run
+hadn't plateaued at 800. Result: **8.361 ± 0.029**, settled into a clean plateau of
+8.38-8.44 from step ~1150 through 1450 (σ² stable ~2.7-4.1 — nonzero as expected for an
+open-shell degenerate GS, but a real plateau, not still drifting). Materially better than
+the CPU/reduced-resource run's 8.97 — confirms the escape is real and that more
+samples/iterations buy real accuracy, not just noise reduction. Single seed (42) so far;
+multi-seed replication is the next thing to check before calling this settled.
+
+Going forward: **all work in this project is tracked in `QUEUE.md`** (explicit prioritized
+backlog, top-to-bottom) — check it before starting anything, and move finished items here
+with results rather than leaving them only in the queue.

@@ -1,0 +1,52 @@
+# @package _global_
+# DEFLATION PENALTY TEST, N=4 isotropic QHO, NO L_z projection (RESEARCH_LOG 2026-07-16).
+# Supersedes qho_fermisets_2d_4N_holo.yaml: the differential (Cauchy-Riemann / Laplacian)
+# penalties were shown to be satisfiable by remixing WITHIN the exactly-degenerate
+# {holo, antiholo} subspace (same energy, no progress) -- a plateaued run scored as high
+# as the true GS on both differential metrics while stuck at E=10. This config instead
+# penalizes the GLOBAL overlap |<psi|holo>|^2/(...) + |<psi|antiholo>|^2/(...) directly
+# (Ginibre-ensemble exact sampling of the analytic targets, src/deflation_penalty.py).
+# Historical baseline to beat: E->10.03-10.08 (746 from-scratch runs). Open-shell exact
+# GS=8.0 is degenerate, so success = breaking the E=10 plateau and continuing to descend,
+# not landing on an exact final digit.
+seed: 42
+use_wnb: False
+
+system:
+  N: 4
+  dim: 2
+  potential: qho_no_inter
+
+ansatz:
+  model: fermi_sets
+  hidden_units: 64
+  out_units: 10
+  pretrained_path: null
+
+trainer:
+  vmc_iters: 800
+  lr: 0.01
+  n_samples: 4096
+  diag_shift: 0.05
+  validation: true
+  optimizer: momentum
+  momentum_beta: 0.9
+  chunk_size: 1024
+  lr_decay_rate: 0.95
+  lr_decay_steps: 100
+  pinv_rtol: 1e-12
+  pinv_atol: 1e-14
+  deflation_penalty: true
+  deflation_penalty_mu0: 1.0
+  deflation_penalty_decay: 0.995
+  deflation_penalty_lr: 0.01    # calibrated 2026-07-16: 0.001 too weak (natural SR pull
+                                # toward the trap outpaces it, overlap climbed 0.32->0.65
+                                # over 8 iters); 0.01 visibly suppresses overlap (down to
+                                # ~0.002-0.37, noisy) while energy still trends down
+                                # (noisier than unpenalized, no blow-up in a 10-iter test)
+  deflation_penalty_n_ginibre: 2000
+
+sampler:
+  sigma: 0.1
+  n_chains: 512
+  sweep_size: 32

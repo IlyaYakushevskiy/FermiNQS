@@ -1,0 +1,47 @@
+# @package _global_
+# HOLOMORPHY-DEFECT PENALTY TEST, N=4 isotropic QHO, NO L_z projection (RESEARCH_LOG 2026-07-16).
+# Open shell (degenerate GS at E=8.0), historical from-scratch/unprojected runs land at the
+# holomorphic trap E=N(N+1)/2=10 (10.03-10.08 across 746 runs). This config tests whether the
+# annealed CR-defect ascent penalty alone (no symmetry trick at all) can escape that trap.
+# Same architecture/hyperparams as the rest of the scaling series (hidden=64, out=10, momentum
+# lr=0.01) except lz_proj_K is explicitly 0/absent -- the whole point is testing without it.
+seed: 42
+use_wnb: False
+
+system:
+  N: 4
+  dim: 2
+  potential: qho_no_inter
+
+ansatz:
+  model: fermi_sets
+  hidden_units: 64
+  out_units: 10
+  pretrained_path: null
+
+trainer:
+  vmc_iters: 800
+  lr: 0.01
+  n_samples: 4096
+  diag_shift: 0.05
+  validation: true
+  optimizer: momentum
+  momentum_beta: 0.9
+  chunk_size: 1024
+  lr_decay_rate: 0.95
+  lr_decay_steps: 100
+  pinv_rtol: 1e-12
+  pinv_atol: 1e-14
+  holo_penalty: true
+  holo_penalty_mu0: 1.0
+  holo_penalty_decay: 0.995   # ~0.02 of mu0 left by step 800 (0.995^800 ~ 0.018)
+  holo_penalty_lr: 0.0001    # calibrated 2026-07-16: 0.003 blew up energy in an 6-iter
+                              # CPU shakedown (12->29, D 2->9, penalty overpowered SR);
+                              # 0.0001 kept energy descending normally (12.1->10.5/8 iters,
+                              # D roughly flat ~1.6-2.2) -- gentle-nudge regime, not yet
+                              # proven to escape the E=10 plateau (needs the full run)
+
+sampler:
+  sigma: 0.1
+  n_chains: 512
+  sweep_size: 32

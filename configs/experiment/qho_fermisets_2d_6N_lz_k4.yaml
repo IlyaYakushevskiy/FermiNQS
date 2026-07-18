@@ -1,0 +1,42 @@
+# @package _global_
+# K-vs-N MARGIN ABLATION, arm 2 of 2 (QUEUE.md P0, RESEARCH_LOG 2026-07-16 lz_margin
+# analysis). Identical to qho_fermisets_2d_6N_lz.yaml (the validated K=6 run) except
+# lz_proj_K=4. tools/lz_margin.py: margin(N=6, K=4) = 1 -- the trap itself (L_z=15) IS
+# excluded (15%4=3!= 0), but only the first "lazy" excited state past it survives with
+# margin 1, a much thinner buffer than K=6's margin of 3. PREDICTED: projection still
+# works (should reach E=14.0) but slower/noisier than the K=6 run -- a thin margin, not
+# a safe one. Longer budget than the K=3 arm (800 vs 500 iters) to give convergence a
+# fair chance before calling it.
+seed: 42
+use_wnb: False
+
+system:
+  N: 6
+  dim: 2
+  potential: qho_no_inter
+
+ansatz:
+  model: fermi_sets
+  hidden_units: 64
+  out_units: 10
+  pretrained_path: null
+  lz_proj_K: 4
+
+trainer:
+  vmc_iters: 800
+  lr: 0.01
+  n_samples: 4096
+  diag_shift: 0.05
+  validation: true
+  optimizer: momentum
+  momentum_beta: 0.9
+  chunk_size: 1024
+  lr_decay_rate: 0.95
+  lr_decay_steps: 100
+  pinv_rtol: 1e-12
+  pinv_atol: 1e-14
+
+sampler:
+  sigma: 0.1
+  n_chains: 512
+  sweep_size: 32

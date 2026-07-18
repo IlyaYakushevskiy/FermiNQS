@@ -35,6 +35,9 @@ ALLOWED_CFG_KEYS = {
         "momentum_beta", "optimizer", "validation", "chunk_size",
         "lr_decay_rate", "lr_decay_steps", "pinv_rtol", "pinv_atol",
         "auto_rollback", "rollback_margin", "max_retries",
+        "holo_penalty", "holo_penalty_mu0", "holo_penalty_decay", "holo_penalty_lr",
+        "deflation_penalty", "deflation_penalty_mu0", "deflation_penalty_decay",
+        "deflation_penalty_lr", "deflation_penalty_n_ginibre",
     },
 }
 
@@ -299,7 +302,16 @@ def main(cfg : DictConfig):
         tune_sigma = cfg.sampler.get("tune_sigma", True),
         auto_rollback = cfg.trainer.get("auto_rollback", True),
         rollback_margin = cfg.trainer.get("rollback_margin", 2.0),
-        max_retries = cfg.trainer.get("max_retries", 2)
+        max_retries = cfg.trainer.get("max_retries", 2),
+        holo_penalty = cfg.trainer.get("holo_penalty", False),
+        holo_penalty_mu0 = cfg.trainer.get("holo_penalty_mu0", 0.0),
+        holo_penalty_decay = cfg.trainer.get("holo_penalty_decay", 1.0),
+        holo_penalty_lr = cfg.trainer.get("holo_penalty_lr", 0.0),
+        deflation_penalty = cfg.trainer.get("deflation_penalty", False),
+        deflation_penalty_mu0 = cfg.trainer.get("deflation_penalty_mu0", 0.0),
+        deflation_penalty_decay = cfg.trainer.get("deflation_penalty_decay", 1.0),
+        deflation_penalty_lr = cfg.trainer.get("deflation_penalty_lr", 0.0),
+        deflation_penalty_n_ginibre = cfg.trainer.get("deflation_penalty_n_ginibre", 2000),
     )
     
     trainer()
