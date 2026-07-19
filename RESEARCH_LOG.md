@@ -1051,3 +1051,60 @@ asymptotic argument is real and empirically confirmed by N~100-200, just outside
 thesis's own trainable range; (3) state both facts, don't conflate them.
 
 QUEUE.md P1 marked done.
+
+---
+
+### 2026-07-19 — K=3/K=4/K=6 all plateau at the SAME energy at N=6: margin ablation result reframed
+
+**Resumed K3-cont/K4-cont results** (both from checkpoint, +500 iters, cumulative
+~950-1000 iters total):
+- K=3 (margin=0): **17.208 ± 0.063** (`outputs/n6_lz_k3_cont_console.log`)
+- K=4 (margin=1): **17.458 ± 0.070** (`outputs/n6_lz_k4_cont_console.log`)
+
+Pulled the matching K=6 number for direct comparison (`outputs/qho_6N_lz_cont_console.log`,
+same cumulative ~1000-iter budget, 2026-07-16): **17.408 ± 0.051**.
+
+**All three land in a tight 17.2-17.5 band.** This is the important correction: the
+"K=6 already validated" claim in QUEUE.md/memory referred to the **N=3** dot/QHO runs
+(E=5.009-5.017, 0.09% on the dot) — there is NO N=6 QHO run at ANY tested K (3, 4, or 6)
+that has actually converged to 14.0 in ~1000 iterations. The K-vs-N margin ablation as
+designed (expecting K=3/5 total failure at E→21, K=4 thin, K=6 clean convergence) did
+NOT produce that pattern. Instead margin appears to make no visible difference in this
+budget — a genuinely different finding than planned, and a more interesting one.
+
+**Hypothesis matching the user's own prediction** (posed before these results were
+known): L_z=15 (Vandermonde trap) mod {3,4,6} = {0,3,0} respectively — so K=4 is the
+only one of the three that structurally excludes the exact trap. But **L_z=12** survives
+projection under ALL THREE (12 mod 3 = 0, mod 4 = 0, mod 6 = 0 — LCM(3,4,6)=12) making it
+the natural candidate for a shared intermediate attractor if that's what's happening,
+exactly the "stuck at L_z=6 or 12" failure mode the user flagged as a live possibility
+before margin theory was checked against N=6 data. **Not yet confirmed** — `tools/ed_dot.py`
+only block-diagonalizes by (px,py) parity, not by L_z directly, so there's no ED number
+yet for the L_z=12 sector energy to check against ~17.2-17.5. Needs either (a) a small
+L_z-resolved ED addition, or (b) much longer FermiSets runs to see if the plateau is
+iteration-budget (same "N=6 needs more iters" pattern as the unprojected scaling runs)
+or a genuine second attractor. Do not conclude which until one of those is checked.
+
+**SlaterNN baseline results (QUEUE P2), all from scratch, single seed 42:**
+
+| system              | iters | SlaterNN result           | reference        | rel. err |
+|----------------------|-------|----------------------------|-------------------|----------|
+| N=3 QHO              | 1500  | 4.99997 ± 0.00018          | 5.0 (exact)       | 0.0006%  |
+| N=6 QHO              | 800   | 13.9994 ± 0.00035          | 14.0 (exact)      | 0.004%   |
+| N=6 interacting dot  | 1000  | 19.165 ± 0.015             | 19.0038 (ED, S6)  | 0.85%    |
+
+SlaterNN converges essentially exactly on both non-interacting QHO systems, dramatically
+faster and cleaner than FermiSets has managed at N=6 with ANY K so far (see above — none
+of K=3/4/6 have gotten near 14.0 in similar or larger iteration budgets). **This is not
+a surprising result and shouldn't be oversold**: the non-interacting QHO's exact ground
+state IS a single Slater determinant by construction, so a bare-orbitals Slater ansatz
+has zero representability gap there — it's the correct ansatz class for that problem,
+full stop. The informative comparison is the **interacting dot**, whose exact GS is NOT
+a single Slater determinant (genuine correlation) — SlaterNN still gets respectably
+close (0.85%) with no projection and no correlation factor beyond the shared Gaussian
+envelope, better than FermiSets+K=6 has managed there so far (20.187 ± 0.048, 6.2% err,
+`outputs/dot_6N_lz_cont2_console.log`, though also not run to full convergence).
+Bottom line: FermiSets has not yet beaten a bare Slater baseline on ANY system tested at
+N=6, on either accuracy or speed. If FermiSets is going to justify itself over Slater,
+the interacting dot (or a more strongly correlated system) is the only place that could
+happen, and it hasn't happened yet in the runs so far.

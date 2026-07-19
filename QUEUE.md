@@ -28,7 +28,19 @@ scale with N (checked to N=210), but a FIXED K is not safe for all N (K=6 fails 
 at N=21,28,36,45...). N=6 conveniently gives a same-system A/B/C test for free (K=6
 margin=3 already validated; K=3 or K=5 margin=0 predicted total failure; K=4 margin=1 thin).
 
-- [ ] **PAUSED 2026-07-18 22:57 (user shut down machine, jobs killed on request)** — status:
+- [x] **RESOLVED 2026-07-19 (result reframed, not the planned A/B/C)**: K3-cont/K4-cont
+      finished (+500 iters each from checkpoint, ~1000 cumulative). K=3: 17.208±0.063.
+      K=4: 17.458±0.070. K=6 (same cumulative budget, 2026-07-16): 17.408±0.051. **All
+      three plateau in the same 17.2-17.5 band** — margin made no visible difference in
+      this budget. The "K=6 validated" claim below was actually the N=3 system, not N=6
+      — no tested K has converged N=6 QHO to 14.0 yet. Live hypothesis (user's own,
+      posed independently): L_z=12 survives projection under K=3, K=4, AND K=6
+      (LCM=12) and could be a shared intermediate attractor — NOT yet confirmed,
+      `tools/ed_dot.py` only blocks by parity not L_z. See RESEARCH_LOG.md 2026-07-19
+      for full writeup and next-step options. Superseded by SlaterNN baseline result
+      (P2): SlaterNN nails N=6 QHO to 0.004% in 800 iters from scratch — FermiSets
+      hasn't beaten bare Slater on any system at N=6 yet, accuracy or speed.
+- [ ] **PAUSED 2026-07-18 22:57 (user shut down machine, jobs killed on request)** — status: (historical, superseded by resolution above)
       - `qho_fermisets_2d_6N_lz_k3` (K=3, margin=0) **completed all 500/500 iters cleanly**
         (`outputs/2026-07-18/20-36-14`). Final: **18.198−0.061j ± 0.065** [σ²≈17].
         **Does NOT match the naive prediction** ("total failure, reproduces E→21 trap") —
@@ -98,15 +110,20 @@ antisymmetry-by-construction avoid the holomorphic trap at all" cleanly. Backflo
       choosing orbitals with definite angular momentum (zero extra cost); FermiSets pays
       O(K) for the same guarantee via projection. State this asymmetry plainly — it
       stands even if this ansatz is never built (a valid textual point in the thesis).
-- [ ] **QUEUED 2026-07-19, runs automatically after the P0 K3/K4-cont chain finishes**
-      (watcher polls the P0 bash-wrapper PID, then launches in sequence): N=3
-      (`qho_slater_2d_3N_bench`, 1500 iters, exact GS 5.0), N=6 QHO
-      (`qho_slater_2d_6N`, 800 iters, exact GS 14.0), N=6 interacting dot
-      (`dot_slater_2d_6N`, 1000 iters, e_ref 19.0038). Console logs
-      `outputs/slater_n3_console.log`, `outputs/slater_n6_console.log`,
-      `outputs/slater_dot_n6_console.log`. Does Slater avoid the trap-plateau pathology
-      entirely (expected — no separate signature encoder to get lazy about)? Write up
-      in RESEARCH_LOG.md once all three land.
+- [x] **DONE 2026-07-19**: N=3 QHO 4.99997±0.00018 (0.0006%), N=6 QHO 13.9994±0.00035
+      (0.004%), N=6 dot 19.165±0.015 (0.85% vs ED 19.0038). Slater avoids the
+      trap-plateau entirely on both QHO systems (expected — no signature encoder to get
+      lazy about) and beats FermiSets+K=6's best dot result so far (20.187±0.048, 6.2%
+      err). Full writeup + framing (QHO is a non-issue by construction — the exact GS
+      IS a single Slater determinant there; the dot is the only test that's actually
+      informative about correlation) in RESEARCH_LOG.md 2026-07-19.
+- [ ] **Open question raised by these results**: FermiSets has not yet beaten bare
+      Slater on accuracy OR speed on any system tested at N=6. If FermiSets/L_z-trick is
+      going to justify itself for the thesis, the interacting dot is the only place it
+      still could — needs either (a) a longer/better-tuned FermiSets dot run to see if
+      it can close the gap, or (b) a more strongly-correlated system where a single
+      Slater determinant's representability ceiling actually bites. Decide with user
+      before spending more GPU time here.
 
 ---
 
