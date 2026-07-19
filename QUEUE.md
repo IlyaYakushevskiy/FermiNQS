@@ -40,6 +40,23 @@ margin=3 already validated; K=3 or K=5 margin=0 predicted total failure; K=4 mar
       for full writeup and next-step options. Superseded by SlaterNN baseline result
       (P2): SlaterNN nails N=6 QHO to 0.004% in 800 iters from scratch — FermiSets
       hasn't beaten bare Slater on any system at N=6 yet, accuracy or speed.
+      **Figure**: `plots/n6_margin_ablation_vs_slater.png` (`plots/plot_n6_margin_ablation.py`,
+      re-runnable) — all three K trajectories track together, still slowly descending
+      (NOT a hard plateau) at 900-1000 cumulative iters, vs SlaterNN's clean drop to
+      14.0 by step ~50. Caveat for the writeup: since K=3/4/6 are still descending, not
+      flat, "stuck" is not proven yet — could still be an iteration-budget question,
+      same as SlaterNN needed 0 extra tuning but FermiSets might just be slower here.
+- [ ] **N=10 K=6 scaling attempt (2026-07-19): FAILED, catastrophic SR instability, not
+      a margin result.** Two auto-rollback retries (lr 0.01→0.005→0.0025), both
+      re-diverged, final state E≈3.67e28 (not trustworthy). Full diagnosis in
+      RESEARCH_LOG.md 2026-07-19 — failure shape (variance spikes before each blow-up,
+      huge spurious imaginary energy) points at collision-driven local-energy outliers
+      (45 pairs at N=10 vs 15 at N=6) interacting with fixed SR regularization
+      (`diag_shift=0.05`, `max_bilinear_form=900`), not at insufficient
+      hidden_units/expressivity (expressivity shortfalls plateau, they don't explode).
+      **Needs a decision before retrying**: bump `diag_shift`/lower `max_bilinear_form`
+      first (cheapest), or test an intermediate N (e.g. N=8) to see if it's a smooth
+      trend or an N=10-specific cliff, before assuming architecture capacity is the fix.
 - [ ] **PAUSED 2026-07-18 22:57 (user shut down machine, jobs killed on request)** — status: (historical, superseded by resolution above)
       - `qho_fermisets_2d_6N_lz_k3` (K=3, margin=0) **completed all 500/500 iters cleanly**
         (`outputs/2026-07-18/20-36-14`). Final: **18.198−0.061j ± 0.065** [σ²≈17].

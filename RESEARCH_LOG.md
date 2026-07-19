@@ -1108,3 +1108,64 @@ Bottom line: FermiSets has not yet beaten a bare Slater baseline on ANY system t
 N=6, on either accuracy or speed. If FermiSets is going to justify itself over Slater,
 the interacting dot (or a more strongly correlated system) is the only place that could
 happen, and it hasn't happened yet in the runs so far.
+
+---
+
+### 2026-07-19 — N=10 K=6 scaling attempt: catastrophic SR instability, not a margin question
+
+First attempt at a closed-shell N above 6 with a genuinely-small K (`tools/lz_margin.py
+--N 10 --K 6` → margin=3, K=6 < N=10 for the first time in this series). Exact GS=30.0
+(shells 0-3), trap L_z=45. Same fixed architecture/hyperparams as every other run in
+the series (hidden_units=64, out_units=10, lr=0.01, diag_shift=0.05,
+max_bilinear_form=900 in `make_safe_solver`) — nothing tuned, deliberately.
+
+**Result: did not survive.** Descended cleanly 74.9 → 58.8 (steps 0-200), dipped to
+46.3 near step 250 (close to the trap at 45), climbed back to 57.5 by step 350 while
+variance grew (15 → 600), then the `BlowupGuard` tripped at step 271 of the ORIGINAL
+run (E=236, threshold=219) and auto-rolled back to step_250 with lr halved to 0.005 —
+this is the existing safety mechanism (`src/train.py` `BlowupGuard`/`auto_rollback`)
+working as designed. The retry blew up again, faster, at step 350→351 (E: 99.8 → 557.5
+in ONE step, σ² 600→27000) — rolled back a second (and last, `max_retries=2`) time to
+step_350 with lr=0.0025. That retry blew up immediately and catastrophically: step 0 of
+the third attempt already shows E=27.3−760j (huge spurious IMAGINARY component, σ²=1.2e5),
+step 1 hit E=860−65j, and with no retries left the driver ran to completion anyway,
+diverging to a final E≈3.67e28 explicitly logged as "not trustworthy."
+
+**Diagnosis (not yet empirically isolated, but the failure signature points at a
+specific mechanism, not blind bad luck):** each blow-up was preceded by variance
+climbing steeply over several steps (15→80→600) before the fatal jump — the classic
+signature of rare outlier local-energy samples (near-particle-collisions) increasingly
+dominating the batch mean/gradient, not a smoothly growing instability. N=10 has 45
+pairwise Vandermonde factors vs N=6's 15 — 3x the opportunities per MCMC sample for a
+near-collision to hit the `eta_antisymmetric` epsilon-regularized `diff/sqrt(|diff|²+a²)`
+term at its most fragile (CLAUDE.md already flags this regularization as "a recurring
+numerical-stability failure mode, not just defensive boilerplate"). The huge imaginary
+energy component on the second blow-up (a real Hamiltonian should give real energy
+expectation up to MC noise) is consistent with the wavefunction phase becoming corrupted
+by such an outlier, not with a generic "ran out of capacity" underfitting failure.
+
+**Why this looks more like a sampling/regularization problem than an expressivity
+problem** (the user's initial hypothesis was "not enough hidden units"): expressivity
+shortfalls in VMC show up as *plateaus* (the ansatz converges to the best state it CAN
+represent and stops, cleanly, at low variance — exactly what the N=6 K-ablation runs do,
+see the plateau writeup above). What happened here instead was *explosive* divergence,
+twice, each time faster than the last even after halving the learning rate — that shape
+implicates the gradient/curvature ESTIMATE itself being corrupted by rare pathological
+samples (sampling/regularization), not the network being too narrow to fit the target
+(which would not explain why lowering lr made the recovery WORSE, not better, on the
+second attempt).
+**Not yet confirmed** — would need to inspect the actual sample batch at steps 350-351
+for a near-collision outlier, or rerun with tighter collision regularization / higher
+`diag_shift` / an outlier-robust (e.g. median-clipped) local-energy estimator to see if
+that prevents the blow-up before assuming this diagnosis is right.
+
+**Recommendation for the next attempt** (not yet run, needs a decision before spending
+more GPU time): (1) do NOT just retry N=10 with the identical config — it failed twice
+already at decreasing lr; (2) try, in rough order of expected diagnostic value: (a)
+larger `diag_shift` (e.g. 0.1-0.2, more SR regularization) and/or a lower
+`max_bilinear_form`, cheapest to test; (b) larger `n_samples` (less susceptible to one
+outlier dominating the batch mean); (c) only if (a)/(b) don't help, revisit architecture
+capacity (`hidden_units`/`out_units`) as the user originally suspected. Also worth an
+intermediate N (e.g. N=8, not closed-shell but structurally the same architecture,
+purely to see if the instability is a smooth function of N or a sudden N=10-specific
+cliff) before spending a full run's budget on N=10 again.
