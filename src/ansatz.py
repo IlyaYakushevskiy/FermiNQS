@@ -397,4 +397,47 @@ class GaussianFermions(nnx.Module):
         if self.dim ==  1:
             X_reshaped = X.reshape(-1, self.N, 1)
             log_eta = self.eta_antisymmetric(X_reshaped)
-        return exponent + log_eta #nk expects log , don't exponentiate 
+        return exponent + log_eta #nk expects log , don't exponentiate
+
+
+class SlaterNN(nnx.Module):
+    """
+    QUEUE.md P2 baseline: N learned single-particle orbitals phi_k(x_i) (shared MLP,
+    dim -> hidden_units -> N), Slater determinant via jnp.linalg.slogdet of the N x N
+    orbital matrix M[i,k] = phi_k(x_i). Antisymmetry under particle exchange is exact
+    by construction (swapping two rows of M flips det's sign) -- no signature encoder,
+    no L_z projection needed. Purpose: isolate whether "antisymmetry by construction"
+    alone avoids the holomorphic-trap pathology that FermiSets needs L_z projection to
+    escape (see RESEARCH_LOG "holomorphic trap" entries).
+
+    Orbitals are real-valued, so slogdet's sign is discrete (+-1) -- the resulting
+    phase (0 or pi) is a locally-constant field, same as any real-orbital Slater
+    determinant in VMC (PauliNet/FermiNet-style): its gradient is zero a.e. away from
+    the nodal surface, which is expected and does not break VMC_SR's mode="complex"
+    training (only log|psi|'s gradient carries signal there).
+    """
+    def __init__(self, dim: int, N: int, rngs: nnx.Rngs, hidden_units: int = 64):
+        self.dim = dim
+        self.N = N
+        self.hidden_units = hidden_units
+
+        self.orb_dense1 = nnx.Linear(in_features=dim, out_features=hidden_units, rngs=rngs)
+        self.orb_dense2 = nnx.Linear(in_features=hidden_units, out_features=hidden_units, rngs=rngs)
+        self.orb_dense3 = nnx.Linear(in_features=hidden_units, out_features=N, rngs=rngs)
+
+    def __call__(self, x: jax.Array):
+        x_reshaped = x.reshape(-1, self.N, self.dim)  # (batch, N, dim)
+
+        y = self.orb_dense1(x_reshaped)
+        y = nnx.gelu(y)
+        y = self.orb_dense2(y)
+        y = nnx.gelu(y)
+        orbitals = self.orb_dense3(y)  # (batch, N, N): orbitals[b, i, k] = phi_k(x_i)
+
+        sign, logabsdet = jnp.linalg.slogdet(orbitals)
+        phase = jnp.where(sign < 0, jnp.pi, 0.0)
+
+        log_gaussian_factor = -0.5 * jnp.sum(jnp.square(x), axis=-1)
+
+        logPsi = logabsdet + log_gaussian_factor + 1j * phase
+        return logPsi 

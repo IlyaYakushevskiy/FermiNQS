@@ -1,0 +1,42 @@
+# @package _global_
+# CONTINUATION of qho_fermisets_2d_6N_lz_k3.yaml (RESEARCH_LOG 2026-07-18/19): the
+# original 500-iter run completed cleanly at 18.198 +- 0.065, NOT the naively-predicted
+# "total failure / reproduces E=21 trap" for margin=0. This run resumes from that run's
+# final checkpoint (step_450) for another 500 iters to see whether it keeps descending
+# toward 14.0 (margin=0 is less catastrophic than assumed), plateaus somewhere above 14
+# (partial-failure signature), or reverses back toward the trap (would vindicate the
+# naive prediction on a longer timescale). Whatever it does, resolves the P0
+# interpretation puzzle empirically instead of guessing.
+seed: 42
+use_wnb: False
+
+system:
+  N: 6
+  dim: 2
+  potential: qho_no_inter
+
+ansatz:
+  model: fermi_sets
+  hidden_units: 64
+  out_units: 10
+  pretrained_path: /home/ilya/FermiNQS/outputs/2026-07-18/20-36-14/checkpoints/step_450.mpack
+  lz_proj_K: 3
+
+trainer:
+  vmc_iters: 500
+  lr: 0.01
+  n_samples: 4096
+  diag_shift: 0.05
+  validation: true
+  optimizer: momentum
+  momentum_beta: 0.9
+  chunk_size: 1024
+  lr_decay_rate: 0.95
+  lr_decay_steps: 100
+  pinv_rtol: 1e-12
+  pinv_atol: 1e-14
+
+sampler:
+  sigma: 0.1
+  n_chains: 512
+  sweep_size: 32

@@ -63,34 +63,50 @@ margin=3 already validated; K=3 or K=5 margin=0 predicted total failure; K=4 mar
 
 ---
 
-## P1 — wall-clock complexity ablation (cheap, no training, supports the O(K·N²) vs O(N³) claim)
+## P1 — wall-clock complexity ablation (cheap, no training, supports the O(K·N²) vs O(N³) claim) — DONE
 
-- [ ] Forward-pass-only timing (NO training) at N = 3, 6, 10, 15, 20, 30. For FermiSets,
-      pick K per N via `tools/lz_margin.py choose_K(N, margin_target=3)` — NOT a fixed
-      K=6. Pins the actual O(K·N²) vs O(N³) crossover empirically (constant prefactors
-      matter at the N we can afford; theory alone says crossover near N≈K, small N, but
-      real JAX/GPU prefactors could shift this). Needs at minimum a naive Slater
-      `slogdet` timing comparator (doesn't need to be a trained/accurate ansatz for this
-      specific ablation — just correct forward-pass cost).
+- [x] **DONE 2026-07-19** (`tools/timing_ablation.py`, RESEARCH_LOG.md same date). N=3..30
+      (this thesis's actual trainable range): NO crossover, FermiSets 15-65x slower —
+      wall-clock there is network-width-bound (hidden_units=64, K=4-7 repeats), not
+      N-scaling-bound; real finding, must state plainly. Extended to N=50/100/200:
+      crossover found between N=50 (Slater ~2x faster) and N=100 (FermiSets ~3x faster,
+      ~6.4x by N=200) — confirms the O(K·N²) vs O(N³) shape empirically, just outside
+      this thesis's own trainable N. Caveat: bare `slogdet` only, no orbital NN (P2 would
+      add constant cost to the Slater side too, could shift the crossover later).
 
 ---
 
-## P2 — Slater-determinant baseline, accuracy comparison (optional / cut-if-tight)
+## P2 — Slater-determinant baseline, accuracy comparison
 
 Recommended design: **bare NN orbitals + `slogdet`, no backflow** first — isolates "does
 antisymmetry-by-construction avoid the holomorphic trap at all" cleanly. Backflow
 (FermiNet/PauliNet-style) only as a follow-up if bare Slater underperforms on the dot.
 
-- [ ] New ansatz class in `src/ansatz.py` (e.g. `SlaterNN`): N learned single-particle
-      orbitals, `jnp.linalg.slogdet` of the N×N orbital matrix, same Gaussian-envelope
-      convention as `FermiSets`.
-- [ ] Note for the writeup regardless of results: Slater gets L_z symmetry FOR FREE by
+- [x] **Built 2026-07-19**: `SlaterNN` in `src/ansatz.py` — shared per-particle MLP
+      (dim -> hidden_units -> N) gives orbitals[i,k] = phi_k(x_i), `jnp.linalg.slogdet`
+      of the N×N matrix, same Gaussian-envelope convention as `FermiSets`. Real orbitals
+      -> discrete (0/pi) phase from slogdet's sign, same as any real-orbital Slater in
+      VMC (PauliNet/FermiNet-style) — expected, not a bug. Wired into `main.py` as
+      `ansatz.model: fermi_slater_nn` (needs "fermi" substring for the
+      `is_fermionic`/statistics dispatch). Sanity-checked in
+      `tests/stage0_sanity_slater.py` (antisymmetry under all pair swaps, N-cycle parity,
+      collision -> -inf-scale not NaN, at N=3 and N=6) — all pass. 20-iter CPU/GPU
+      shakedown at N=3 (`qho_slater_2d_3N_bench`, reduced samples/chains): energy
+      7.7 -> 5.19 in 20 iters (exact GS 5.0) — very fast, clean convergence, no NaN,
+      full pipeline (checkpoint/plot) verified working end-to-end.
+- [x] Note for the writeup regardless of results: Slater gets L_z symmetry FOR FREE by
       choosing orbitals with definite angular momentum (zero extra cost); FermiSets pays
       O(K) for the same guarantee via projection. State this asymmetry plainly — it
       stands even if this ansatz is never built (a valid textual point in the thesis).
-- [ ] If built: accuracy comparison at N=3, N=6, and the interacting dot. Does Slater
-      avoid the trap-plateau pathology entirely (expected — no separate signature encoder
-      to get lazy about)?
+- [ ] **QUEUED 2026-07-19, runs automatically after the P0 K3/K4-cont chain finishes**
+      (watcher polls the P0 bash-wrapper PID, then launches in sequence): N=3
+      (`qho_slater_2d_3N_bench`, 1500 iters, exact GS 5.0), N=6 QHO
+      (`qho_slater_2d_6N`, 800 iters, exact GS 14.0), N=6 interacting dot
+      (`dot_slater_2d_6N`, 1000 iters, e_ref 19.0038). Console logs
+      `outputs/slater_n3_console.log`, `outputs/slater_n6_console.log`,
+      `outputs/slater_dot_n6_console.log`. Does Slater avoid the trap-plateau pathology
+      entirely (expected — no separate signature encoder to get lazy about)? Write up
+      in RESEARCH_LOG.md once all three land.
 
 ---
 

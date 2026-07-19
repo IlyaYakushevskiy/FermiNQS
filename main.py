@@ -16,7 +16,7 @@ from netket.sampler.rules import MetropolisRule # TODO create file sampler
 
 
 from src.system import System
-from src.ansatz import Gaussian, DeepSetsNN, FermiSets, GaussianFermions
+from src.ansatz import Gaussian, DeepSetsNN, FermiSets, GaussianFermions, SlaterNN
 from src.train import Trainer
 from plots.plot_errs import plot_err
 
@@ -248,14 +248,22 @@ def main(cfg : DictConfig):
                 allow_val_change=True,
             )
 
-    if cfg.ansatz.model ==  "gaussian_fermions": 
+    if cfg.ansatz.model ==  "gaussian_fermions":
         ansatz = GaussianFermions(
             dim= cfg.system.dim,
             rngs= nnx.Rngs(42),
             N = cfg.system.N
         )
 
-    
+    if cfg.ansatz.model ==  "fermi_slater_nn":
+        ansatz = SlaterNN(
+            dim= cfg.system.dim,
+            rngs= nnx.Rngs(42),
+            N = cfg.system.N,
+            hidden_units= cfg.ansatz.get("hidden_units", 64),
+        )
+
+
     custom_rule = SamplerExchangeRule(
         sigma=cfg.sampler.sigma,
         exchange_prob=cfg.sampler.get("exchange_prob", 0.1),

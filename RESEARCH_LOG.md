@@ -997,3 +997,57 @@ GPU back to idle). Status, so the next session can resume without re-deriving an
 ablation table should be framed), then resume/complete K=4, then write up the full
 K-vs-N table (K=3/4/6 at N=6) before moving to QUEUE P1. Full detail and exact resume
 command in QUEUE.md P0.
+
+---
+
+## 2026-07-19 — P1 wall-clock complexity ablation: empirical O(K·N²) vs O(N³) crossover found
+
+Forward-pass-only timing (no training), `tools/timing_ablation.py`, GPU, batch=4096,
+`hidden_units=64`/`out_units=10` (canonical), K per N via `tools/lz_margin.py`'s
+`choose_K(N, margin_target=3)` (NOT a fixed K=6, per QUEUE.md's explicit instruction) vs.
+bare `jnp.linalg.slogdet` on a batch of complex N×N matrices (the "Slater" comparator —
+deliberately no orbital NN, just the determinant cost itself; QUEUE.md P1 explicitly
+allows this since the ablation is about the O(N³) primitive, not a trained ansatz).
+
+**First pass (N=3..30, the range this thesis actually trains at)**: NO crossover visible,
+FermiSets forward consistently 15-65x *slower* in wall-clock than bare slogdet
+(1.2-17ms vs 0.08-1.0ms). Root cause, confirmed by inspecting the numbers: at these N,
+both the O(N²) Vandermonde pairwise term AND the O(N³) slogdet are utterly dominated by
+the *constant* cost of the K-fold-repeated (K=4-7), 2x-repeated (±η branches) MLP forward
+pass through `hidden_units=64`-wide dense layers — GPU batched linear algebra on tiny
+N×N matrices (N≤30) is essentially free (sub-millisecond) regardless of N³ scaling,
+while FermiSets pays a large constant network-width cost 2K times per evaluation. This
+is itself a real finding, not a null result: **the asymptotic O(K·N²) vs O(N³) argument
+is not observable at the N this thesis can train (N≤~30)** — real wall-clock cost there
+is network-width-bound, not N-scaling-bound. Must state this plainly in the thesis
+complexity discussion rather than just citing the asymptotic argument as if it were
+already visible in this thesis's own scale.
+
+**Second pass, extended to N=50/100/200** (same script, larger `NS` list, more warmup/
+repeats for stability) — the crossover DOES appear once N is large enough for N³ to win:
+
+| N   | K | FermiSets ms/fwd | slogdet ms/fwd | ratio (slogdet/FermiSets) |
+|-----|---|------------------|----------------|---------------------------|
+| 3   | 6 | 1.21             | 0.085          | 0.070                     |
+| 6   | 6 | 5.58             | 0.111          | 0.020                     |
+| 10  | 4 | 5.58             | 0.139          | 0.025                     |
+| 15  | 4 | 5.63             | 0.253          | 0.045                     |
+| 20  | 7 | 6.95             | 0.396          | 0.057                     |
+| 30  | 6 | 6.94             | 0.994          | 0.143                     |
+| 50  | 4 | 8.09             | 3.76           | 0.465                     |
+| 100 | 7 | 20.16            | 62.55          | **3.102**                 |
+| 200 | 8 | 64.00            | 408.39         | **6.381**                 |
+
+**Crossover sits between N=50 and N=100** (Slater still ~2x faster at N=50; FermiSets
+~3x faster by N=100, ~6.4x by N=200) — matches the qualitative O(K·N²) vs O(N³) shape
+predicted, confirmed empirically for the first time at a concrete N rather than left as
+pure asymptotic theory. **Caveat for the writeup**: this is bare `slogdet` cost only, no
+orbital network — a real trained Slater-NN baseline (QUEUE P2) would add its own
+per-particle orbital-network cost on top, which could shift the crossover point later
+(more constant overhead added to the Slater side too). Framing for the thesis: (1) at
+the system sizes this thesis actually trains (N≤6, closed shells), wall-clock is
+network-width-bound and the complexity argument is not yet visible in practice; (2) the
+asymptotic argument is real and empirically confirmed by N~100-200, just outside this
+thesis's own trainable range; (3) state both facts, don't conflate them.
+
+QUEUE.md P1 marked done.
