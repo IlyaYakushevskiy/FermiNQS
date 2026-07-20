@@ -46,17 +46,25 @@ margin=3 already validated; K=3 or K=5 margin=0 predicted total failure; K=4 mar
       14.0 by step ~50. Caveat for the writeup: since K=3/4/6 are still descending, not
       flat, "stuck" is not proven yet — could still be an iteration-budget question,
       same as SlaterNN needed 0 extra tuning but FermiSets might just be slower here.
-- [ ] **N=10 K=6 scaling attempt (2026-07-19): FAILED, catastrophic SR instability, not
-      a margin result.** Two auto-rollback retries (lr 0.01→0.005→0.0025), both
-      re-diverged, final state E≈3.67e28 (not trustworthy). Full diagnosis in
-      RESEARCH_LOG.md 2026-07-19 — failure shape (variance spikes before each blow-up,
-      huge spurious imaginary energy) points at collision-driven local-energy outliers
-      (45 pairs at N=10 vs 15 at N=6) interacting with fixed SR regularization
-      (`diag_shift=0.05`, `max_bilinear_form=900`), not at insufficient
-      hidden_units/expressivity (expressivity shortfalls plateau, they don't explode).
-      **Needs a decision before retrying**: bump `diag_shift`/lower `max_bilinear_form`
-      first (cheapest), or test an intermediate N (e.g. N=8) to see if it's a smooth
-      trend or an N=10-specific cliff, before assuming architecture capacity is the fix.
+- [x] **CLOSED 2026-07-20 (user decision): do not pursue N=10.** N=10 K=6 scaling
+      attempt (2026-07-19) FAILED with catastrophic SR instability (two auto-rollback
+      retries, both re-diverged, final E≈3.67e28 — full diagnosis in RESEARCH_LOG.md
+      2026-07-19). Was only worth revisiting if N=6 (K<N) showed FermiSets converging in
+      practice — it doesn't (see next bullet), so N=10 is closed, no further GPU time.
+- [x] **CLOSED 2026-07-20: K=3 extended to 10 batches (5000 iters), then killed —
+      confirmed noisy plateau, not real convergence.** Trajectory 17.0→16.7 (batches 1-4,
+      real descent) → noisy 16.3-16.7 band with no further net progress (batches 5-10,
+      one batch even ticked slightly positive). K=6 never restarted — SlaterNN already
+      solves this system to 0.004% from scratch, no point grinding K=3/K=6 further to
+      confirm what the trend already shows. **Overlap diagnostic**
+      (`tools/overlap_check_n6.py`, RESEARCH_LOG.md 2026-07-20) falsifies the natural
+      "second lazy trap" guess: the batch-10 checkpoint has 31% overlap with the true
+      GS (not ~0), 0.18% with the excluded holo trap (correctly gone), and only ~0.8-0.9%
+      with each of two candidate `E=16, L_z=0` "next-easiest" states — so it's not stuck
+      on a single wrong eigenstate, it's a genuine partial superposition (real GS content
+      plus a long thin tail across many sector eigenstates). Projection solves *which
+      sector*, not *how hard the GS's non-factorizable sign structure is to reach inside
+      it*. This is the headline finding for the thesis's honest limits section.
 - [ ] **PAUSED 2026-07-18 22:57 (user shut down machine, jobs killed on request)** — status: (historical, superseded by resolution above)
       - `qho_fermisets_2d_6N_lz_k3` (K=3, margin=0) **completed all 500/500 iters cleanly**
         (`outputs/2026-07-18/20-36-14`). Final: **18.198−0.061j ± 0.065** [σ²≈17].
@@ -141,6 +149,23 @@ antisymmetry-by-construction avoid the holomorphic trap at all" cleanly. Backflo
       it can close the gap, or (b) a more strongly-correlated system where a single
       Slater determinant's representability ceiling actually bites. Decide with user
       before spending more GPU time here.
+      **2026-07-20 assessment (not yet executed, pending go-ahead)**: cautiously worth
+      ONE bounded continuation, not a new sweep. Reasoning: the N=6 QHO plateau just
+      diagnosed above is plausibly a symptom of the non-interacting QHO's massive
+      near-degeneracy (many `L_z≡0` eigenstates crowded within 1-3 energy units of the
+      target, per the E=16 manifold analysis) — a peculiarity of solvable non-interacting
+      systems, not necessarily true of the dot. The existing N=6 dot + K=6 run
+      (`outputs/2026-07-16/17-05-18`, E=20.187±0.048, ~6.2% err vs ED 19.0038) was marked
+      "not converged, no plateau, purely iteration budget" when stopped — unlike the QHO
+      case, it had NOT shown the noisy-plateau signature. Falsifiable plan if pursued:
+      resume that exact checkpoint for a bounded number of batches (same
+      checkpoint-resume protocol as the QHO run, capped, not open-ended); if it also
+      shows a noisy non-converging plateau, that kills the "degeneracy" theory and closes
+      the FermiSets thesis pillar's practical case entirely; if it keeps descending
+      cleanly toward 19.0, that's the one place left where the ansatz might still earn
+      its keep. SlaterNN's own dot accuracy (0.85% err) is also worse than its QHO
+      accuracy (0.004%), leaving more real room for FermiSets to matter here than at N=6
+      QHO, where Slater already wins essentially exactly.
 
 ---
 

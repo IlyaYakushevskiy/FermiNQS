@@ -1169,3 +1169,90 @@ capacity (`hidden_units`/`out_units`) as the user originally suspected. Also wor
 intermediate N (e.g. N=8, not closed-shell but structurally the same architecture,
 purely to see if the instability is a smooth function of N or a sudden N=10-specific
 cliff) before spending a full run's budget on N=10 again.
+
+**Decision 2026-07-20 (user): do not pursue N=10 at all.** Rationale: N=10 was only
+interesting as a scaling follow-up if N=6 (K<N) had shown FermiSets converging in
+practice. It didn't (see next entry) — no point chasing stability on a system size that
+matters even less than N=6 once N=6 itself isn't delivering the win. Superseded, closed.
+
+---
+
+## 2026-07-20 — K=3 N=6 QHO: extended to 10 checkpoint-resumed batches (5000 extra iters), then killed. Overlap diagnostic: NOT a second trap.
+
+Continuation of the 2026-07-19 margin-ablation finding (K=3/K=4/K=6 all plateau ~17.2-17.5
+band together). User asked to run K=3 then K=6 "until converged" — built
+`tools/run_until_converged.py` (checkpoint-resume orchestrator, 500-iter batches, stop on
+CONVERGED/PLATEAU/MAX_BATCHES=15), run inside detached tmux sessions after the first
+attempt died silently mid-batch when its owning shell session ended (tmux survives that;
+a plain `setsid nohup ... & disown` apparently did not, this time — worth remembering
+for future long jobs: tmux, not just nohup, going forward).
+
+**K=3 batch trajectory** (each batch = 500 iters from the previous batch's final
+checkpoint; `E` = validation energy at batch end, `slope` = linear fit over the last 300
+iters of that batch):
+
+| batch | E | slope |
+|------:|------:|-------:|
+| 1 | 17.033 | -0.00368 |
+| 2 | 16.938 | -0.00134 |
+| 3 | 16.865 | -0.00253 |
+| 4 | 16.737 | -0.00252 |
+| 5 | 16.476 | -0.00154 |
+| 6 | 16.523 | -0.00151 |
+| 7 | 16.415 | -0.00552 |
+| 8 | 16.597 | +0.00037 |
+| 9 | 16.742 | -0.00363 |
+| 10 | 16.577 | (final val, batch not fully re-checked for slope before kill) |
+
+Reading: a real early descent (batches 1-4, 17.0→16.7) gives way to a noisy plateau from
+batch ~5 onward — bouncing in a 16.3-16.7 band with no further net progress toward 14.0,
+batch 8 even going slightly positive. **User correctly called this before the plateau
+detector formally tripped**: given SlaterNN already solves this system to 0.004% in ~50
+iters from scratch, grinding K=3 for another 10 batches (~5000 more iters, ~11h) to
+confirm a plateau we can already see was not worth it. Killed (tmux sessions +
+processes), K=6 never started, cron status-check cancelled.
+
+### Overlap diagnostic (`tools/overlap_check_n6.py`, new tool) — what is the ~16.5 state?
+
+Before writing this up as "a second lazy trap" (the natural first guess, given the
+original E=21 trap's mechanism), checked directly via importance-sampling overlap
+(N(0,1)^12 proposal, 20k samples, same estimator as `overlap_check.py`) against four
+analytic candidates, on the batch-10 checkpoint (K=3, `lz_proj_K=3`):
+
+- `gs`: true GS, shells n=0,1,2 fully filled (monomial-basis trick, `E=14`, `L_z=0`).
+- `holo`: the original trap, top-m orbital of shells 0-5 (`E=21`, `L_z=15`).
+- `e16a`/`e16b`: two members of the 4-dimensional degenerate (`E=16`, `L_z=0`)
+  eigenspace — shells 0,1 full + shell-2's `m=0` (Laguerre `(1-r^2)`) orbital + shell-3's
+  `m=±3` or `m=±1` pair respectively. This is the **first excited-configuration energy
+  level with any `L_z=0` content at all** above the GS: single particle-hole excitations
+  (`E=15`,`E=17`) turn out to be pure-odd-`L_z` by a parity argument (shell-2's
+  contribution to `L_z` is always even, shell-3's always odd, for one-particle moves), so
+  only even excitation steps (16, 18, ...) can touch `L_z=0` — making `e16a`/`e16b` the
+  natural "next-easiest, still-representable-under-any-K" family to suspect, by the same
+  logic that made the original trap suspect.
+
+**Result** (sanity checks first, all ≲1e-3 confirming near-orthogonality of the
+reference states as expected): `|<nn|gs>|^2 = 0.310`, `|<nn|holo>|^2 = 0.0018`,
+`|<nn|e16a>|^2 = 0.0086`, `|<nn|e16b>|^2 = 0.0080`.
+
+**This falsifies the "second trap" hypothesis.** The holomorphic trap is correctly and
+completely excluded by projection (0.18% residual, noise-level). But the state has
+**31% overlap with the true GS already** — nothing like the 85%-on-a-single-wrong-state
+signature of the original trap — and only ~0.8-0.9% on each `E=16` candidate, nowhere
+near enough to explain the other 69% of the weight. So this is not "stuck in a second
+lazy eigenstate"; it's a genuine partial superposition, mostly GS content plus a long
+thin tail spread across many eigenstates in the `L_z≡0 (mod 3)` sector that this probe
+didn't target (there are many more candidates above `E=16` we didn't test, and only 2 of
+the 4 degenerate `E=16,L_z=0` states were checked). The plateau in the noisy 16.3-16.7
+energy trace is consistent with this: if 31% of the weight sits exactly at `E=14`, the
+remaining 69% averages to roughly `(16.5 - 0.31*14)/0.69 ≈ 17.6` — a broad mix of
+excited content, not a second exact eigenstate.
+
+**Bottom line for the thesis**: projection provably solves *which symmetry sector the
+network is confined to* (verified: the true trap is gone). It does **not** solve *how
+hard the true GS's non-factorizable sign structure is to reach inside that sector* —
+the network gets real, substantial (31%) GS weight quickly, then the remaining approach
+slows to a crawl, mixed thinly across many nearby states rather than concentrating in
+one clean rival. This is a more nuanced, and arguably more informative, negative result
+than "it's stuck in a second trap" would have been — it says the residual difficulty is
+a genuine hard-to-represent-and-reach tail, not a second attractive wrong answer.
