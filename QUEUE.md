@@ -149,23 +149,17 @@ antisymmetry-by-construction avoid the holomorphic trap at all" cleanly. Backflo
       it can close the gap, or (b) a more strongly-correlated system where a single
       Slater determinant's representability ceiling actually bites. Decide with user
       before spending more GPU time here.
-      **2026-07-20 assessment (not yet executed, pending go-ahead)**: cautiously worth
-      ONE bounded continuation, not a new sweep. Reasoning: the N=6 QHO plateau just
-      diagnosed above is plausibly a symptom of the non-interacting QHO's massive
-      near-degeneracy (many `L_z≡0` eigenstates crowded within 1-3 energy units of the
-      target, per the E=16 manifold analysis) — a peculiarity of solvable non-interacting
-      systems, not necessarily true of the dot. The existing N=6 dot + K=6 run
-      (`outputs/2026-07-16/17-05-18`, E=20.187±0.048, ~6.2% err vs ED 19.0038) was marked
-      "not converged, no plateau, purely iteration budget" when stopped — unlike the QHO
-      case, it had NOT shown the noisy-plateau signature. Falsifiable plan if pursued:
-      resume that exact checkpoint for a bounded number of batches (same
-      checkpoint-resume protocol as the QHO run, capped, not open-ended); if it also
-      shows a noisy non-converging plateau, that kills the "degeneracy" theory and closes
-      the FermiSets thesis pillar's practical case entirely; if it keeps descending
-      cleanly toward 19.0, that's the one place left where the ansatz might still earn
-      its keep. SlaterNN's own dot accuracy (0.85% err) is also worse than its QHO
-      accuracy (0.004%), leaving more real room for FermiSets to matter here than at N=6
-      QHO, where Slater already wins essentially exactly.
+      **CLOSED 2026-07-21**: ran the bounded continuation (`tools/run_dot_until_converged.py`,
+      capped at 6 batches). Killed by user after 3 batches (1500 extra iters) — same
+      qualitative noisy-non-progress signature as the QHO: E went 20.187 -> 20.109 ->
+      20.100 -> back up to ~20.18 (batch 3's own early readings), net ~0 progress.
+      Falsifies the "interactions lift the degeneracy and help" hypothesis within the
+      budget tested. Full writeup RESEARCH_LOG.md 2026-07-20/21. **No further GPU time on
+      the dot** — FermiSets+L_z-projection does not beat SlaterNN on accuracy or speed on
+      any system tested (N=3/6 QHO, N=6 dot). The thesis conclusion: projection is a real,
+      provable fix for the wrong-sector pathology (clean win at N=3), but not sufficient
+      by itself to make the true GS's non-factorizable sign structure easy to reach as N
+      grows, interacting or not.
 
 ---
 

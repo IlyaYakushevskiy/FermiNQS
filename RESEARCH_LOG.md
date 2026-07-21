@@ -1256,3 +1256,37 @@ slows to a crawl, mixed thinly across many nearby states rather than concentrati
 one clean rival. This is a more nuanced, and arguably more informative, negative result
 than "it's stuck in a second trap" would have been — it says the residual difficulty is
 a genuine hard-to-represent-and-reach tail, not a second attractive wrong answer.
+
+---
+
+## 2026-07-20/21 — N=6 interacting dot: bounded continuation, killed after 3 batches — same qualitative plateau as the QHO
+
+Motivated by the hypothesis above (RESEARCH_LOG 2026-07-20): the QHO's noisy plateau
+might be an artifact of the non-interacting system's massive near-degeneracy, which the
+dot's Gaussian repulsion should generically lift. Resumed the existing N=6 dot+K=6
+checkpoint (`outputs/2026-07-16/17-05-18/checkpoints/step_800.mpack`, E=20.187±0.048,
+"not converged, no plateau" when previously stopped) via `tools/run_dot_until_converged.py`
+— same checkpoint-resume-in-500-iter-batches protocol as the QHO run, but deliberately
+capped at MAX_BATCHES=6 (not 15) as a bounded falsification test, run inside tmux
+(survived one machine reboot cleanly via the resume logic, losing only ~9 iterations).
+
+**Result, 3 batches (1500 extra iterations) before the user called it and killed the
+run**: batch 1 E=20.109 (slope -0.00073), batch 2 E=20.100 (slope -0.00027, notably
+flatter — but not yet a plateau verdict since batch 1's slope was still above the flat
+threshold), batch 3 killed mid-run (~150/500 iters) with its own early validation
+readings **oscillating 20.17-20.19 — HIGHER than either batch 1 or batch 2's final
+values.** Net effect of 1500 iterations: essentially no progress (20.187 -> ~20.10 ->
+back up to ~20.18), the same noisy non-monotonic signature as the QHO's batches 5+, just
+centered at a different energy.
+
+**Verdict: this falsifies the "interactions lift the degeneracy and help" hypothesis** —
+or at least, it does not show the hoped-for cleaner convergence within the budget tested.
+The dot behaves qualitatively like the QHO: real but small early movement, then noisy
+non-progress. Given this and the already-established SlaterNN baseline beating FermiSets
+everywhere tested (QHO and dot, accuracy and speed), **the interacting dot does not
+rescue the practical case for FermiSets+L_z-projection.** Closed per user decision
+2026-07-21 — no further GPU time here. The thesis's honest conclusion stands on the
+combination of this entry and the two above: projection is a real, provable structural
+fix for the *wrong-sector* pathology (validated cleanly at N=3), but does not by itself
+make the true ground state's non-factorizable sign structure easy to reach as N grows —
+neither in the non-interacting nor the interacting case tested.
