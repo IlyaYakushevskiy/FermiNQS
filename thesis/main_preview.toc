@@ -1,0 +1,25 @@
+\contentsline {section}{\numberline {1}Introduction}{1}{section.1}%
+\contentsline {section}{\numberline {2}Theoretical Background}{2}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Quantum Many-Body Problem in First Quantisation}{2}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Variational Monte Carlo}{3}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Neural Network Ansatz for Fermions}{4}{subsection.2.3}%
+\contentsline {subsubsection}{\numberline {2.3.1}Stochastic Reconfiguration Driver (SR)}{4}{subsubsection.2.3.1}%
+\contentsline {subsubsection}{\numberline {2.3.2}Deep Sets}{5}{subsubsection.2.3.2}%
+\contentsline {subsubsection}{\numberline {2.3.3}Holomorphic Trap}{5}{subsubsection.2.3.3}%
+\contentsline {section}{\numberline {3}Implementation and Experimental Setup}{7}{section.3}%
+\contentsline {subsection}{\numberline {3.1}System Architecture}{7}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}The Sampler}{7}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}System}{7}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Neural Network Ansatz}{7}{subsection.3.4}%
+\contentsline {section}{\numberline {4}Results $\&$ Discussion}{8}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Test of Optimizers}{9}{subsection.4.1}%
+\contentsline {paragraph}{Solver for SR Optimizer}{9}{paragraph*.2}%
+\contentsline {subsection}{\numberline {4.2}Hyperparameter Optimization}{9}{subsection.4.2}%
+\contentsline {paragraph}{Effect of hidden layer size}{9}{paragraph*.3}%
+\contentsline {paragraph}{Regularisation of antisymmetric part}{9}{paragraph*.5}%
+\contentsline {subsection}{\numberline {4.3}Performance of the best model}{10}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Laughlin State (MAIN MEAT3)}{10}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}Supervised pretraining}{10}{subsection.4.5}%
+\contentsline {subsection}{\numberline {4.6}Results with radial symmetry assumption}{10}{subsection.4.6}%
+\contentsline {section}{\numberline {5}Conclusions $\&$ Outlook}{12}{section.5}%
+\contentsline {part}{I\hspace {1em}Appendix}{13}{part.1}%

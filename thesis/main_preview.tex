@@ -130,7 +130,8 @@ While the computational cost of a bosonic ansatz can scale favorably, encoding t
 
 Different methods have been proposed over the years to approach this, such as calculating the Slater determinant or the Pfaffian, or backflow transformations, initially proposed by R. Feynman \cite{feynman_energy_nodate}, and later realised as neural backflow \cite{pfau_ab_2020}.
 
-The Universal Approximation Theorem tells us that with a sufficiently large linear layer and a non-linear activation function we can approximate a function of arbitrary complexity, which is the premise of this thesis.
+The Universal Approximation Theorem tells us that with a sufficiently large linear layer and a non-linear activation function we can approximate a function of arbitrary complexity, which sets the premise of this thesis. While Variational Monte Carlo pipeline with NQS training have been implemeted before. Certain antisymmetric functions have been only theortized before, and this thesis sets to implement one of those antisymmetric representations and rigorously test it's efficiency and general usefulness in practice. 
+
 
 % epxlain motivation for making separation of parts 
 
@@ -151,40 +152,92 @@ The Universal Approximation Theorem tells us that with a sufficiently large line
 
 Fermions are identical particles whose total wavefunction is antisymmetric under the exchange of any two particles.
 
-Slater determinant
+- place explicit formulas for fermions 1/2 (psi- - psi+)
 
-\cite{orus_practical_2014} For a system of, e.g., $N$ spins-1/2, the dimension of the Hilbert space is $2^N$, which
+- place slater determinant formula. 
+
+
+
+
+\cite{orus_practical_2014} For a discrete system of, e.g., $N$ spins-1/2, the dimension of the Hilbert space is $2^N$, which
 is exponentially large in the number of particles. Therefore, representing a quantum state of the
 many-body system just by giving the coefficients of the wave function in some local basis is an
 inefficient representation. The Hilbert space of a quantum many-body system is a really big place
 with an incredibly large number of quantum states. Not all quantum states in the Hilbert space of a many-body system are equal: some are more relevant than others.
 In particular, one can prove that low-energy eigenstates of gapped Hamiltonians with local interactions obey the so-called area-law for the entanglement entropy. This means that the entanglement entropy of a region of space tends to scale, for large enough regions, as the size of the boundary of the region and not as the volume. And this is a very remarkable property, because a quantum state picked at random from a many-body Hilbert space will most likely have an entanglement entropy between subregions that will scale like the volume, and not like the area. In other words, low-energy states of realistic Hamiltonians are not just “any” state in the Hilbert space: they are heavily constrained by locality so that they must obey the entanglement area-law.
 
-
+( - paste figure of targete hilbert space )
 
 \cite{lange_architectures_2024} 
 
 
-+ The Fermionic Sign Problem (we dont care)
-
-Fermionic Sign Problem appears in VMC setups as a consequence of the Pauli principle and constitutes a big computational challenge for VMC setups.
 
 
-figure targeting part of Hilbert space
+Litterture on the topic has well documented Fermionic Sign Problem, which appears in VMC setups as a consequence of the Pauli principle and constitutes a big computational challenge for VMC setups. However in our case it is an irrelevant concern (BECAUSE, short explanation). Hence we completely focus on the cost scaling for the antisymmetric part. 
+
 
  formal mathematics of the permutation symmetric network extended with the predefined antisymmetric function.
 
-- NQS works in continuous space
-Here some
+However in our case we work with continuous space, meaning that arguments to our Wavefunction are directly coordinates of the particle. 
+ - other implications of continuous space 
 \newpage
 
 \subsection{Variational Monte Carlo}
 
- The base of this approach is the quantum-mechanical variational principle, one of the big advantages of which is that the energy of the system is bounded from below by the ground state energy. By optimizing our variational state with respect to parameters $\theta$ in order to decrease the energy, we hope to capture an approximation of the ground state.
+Since we work in continuous, high dimensional, infite space we can not perform integration to evaluate our wavefunctions. 
+Main approach and framework which allows us to postulate wavefunction  $\Psi$, estimate it's local energies, their variance etc by statistical and computational methods is Variational Monte Carlo (VMC).
 
- (here from Becca Sorella on VMC ) 
+The base of VMC is the quantum-mechanical variational principle, one of the big advantages of which is that the energy of the system is bounded from below by the ground state energy. By optimizing \ref{sec:SR} our variational state with respect to parameters $\theta$ in order to decrease the energy, we hope to capture an approximation of the ground state, hence capture the correct ground-state behavior
+
+The known limitation of the method is it's bias to Ansatz, the first assumption of the wavefunction we start optimisation with.
+Hence over last 10 years Neural Network Ansatz \ref{sec:nn_ansatz} became increasingly more popular as it is almost always more efficient then starting from the random state.  
+
+Assuming states are orthogonal and normalised, 
+(claude rewrite those equtions Then, any quantum state | 〉 can be written as:  | 〉=∑  x  |x〉〈x| 〉 = ∑  x  (x)|x〉. (5.2)  In turn, the expectation value of an operator O over a given variational wave function | 〉 takes the following form:  〈O〉 = 〈 |O| 〉  〈|〉 =  ∑  x〈 |x〉〈x|O| 〉  ∑  x〈 |x〉〈x| 〉 . 〈O〉 =  ∑  x |〈 |x〉|2 〈x|O| 〉  〈x| 〉  ∑  x |〈 |x〉|2 =  ∑  x | (x)|2OL(x)  ∑  x | (x)|2 , (5.4)  where we have defined the local estimator of the operator O:  OL(x) = 〈x|O| 〉  〈x| 〉 . (5.5)  The important point is that  P(x) = | (x)|2  ∑  x | (x)|2)
+
+Therefore, the problem of computing a quantum average of the operator O can be rephrased into the calculation of the average of the random variable OL(x) of Eq. (5.5) over the distribution probability P(x) given by Eq. (5.6).
+
+summary 〈O〉 ≈ 1  N  N ∑ n=1  OL(xn).
 
 
+
+\newpage
+
+
+\subsection{Neural Network Ansatz for Fermions}
+\label{sec:nn_ansatz}
+
+- introduce general idea that VMC WF is NN ! 
+
+For fermions, efficiently representing antisymmetric states remains a major challenge. The standard approach is to expand $\Psi$ in terms of Slater determinants constructed from a single-particle basis set $\phi_1(r), ..., \phi_L(r)$.
+The problem with the Slater determinant is that it scales exponentially with the number of particles $N$. From the perspective of computational cost, it translates to $O(n^3)$ complexity, when solving the Slater determinant with LU decomposition. The main goal of this thesis is to verify an ansatz alternative to the Slater determinant, which could bring down the computational cost to $O(n^2)$, thus being a more efficient representation for fermionic wavefunctions. Such an ansatz was first proposed to use a symmetrical part and an antisymmetric part as arguments to a neural network \cite{fu_minimal_2025}.
+
+\begin{equation}
+\psi(r_1 ,..., r_n) = \Psi( r_1, ...,r_n,  \eta(r_1 ,..., r_n  ))
+\end{equation}
+
+
+Where $\Psi$ is implemented as a Neural Network. While we know how to make a symmetrized Ansatz for the bosonic case (Section~\ref{tab:deepsets}), the challenge is to construct the so-called \textit{signature encoder}:
+
+\begin{equation}
+    \eta = \prod_{1 \le j < i \le N} (x_i - x_j)
+\end{equation}
+
+This can be extended to two dimensions using complex coordinates.
+
+\begin{equation}
+    \eta = \eta_1 + i \eta_2 = \prod_{1 \le j < i \le N} (z_i - z_j)
+\end{equation}
+
+
+Later in this work we use a regularised version of $\eta$ for stability at the nodes, i.e. when $|z_i - z_j| \rightarrow 0$:
+
+\begin{equation}
+\label{eq:eta}
+\eta = \prod_{1 \le j < i \le N} \frac{z_i - z_j}{\sqrt{|z_i - z_j|^2 + a^2}}
+\end{equation}
+
+\label{sec:SR}
 \subsubsection{Stochastic Reconfiguration Driver (SR)}
 
 
@@ -219,54 +272,19 @@ The total number of parameters of the model can be calculated as:
 
 Show connection to Jacobian matrix and how to calculate total weight
 
-
-\newpage
-
-
-\subsection{Neural Network Ansatz for Fermions}
-\label{sec:nn_ansatz}
-
-For fermions, efficiently representing antisymmetric states remains a major challenge. The standard approach is to expand $\Psi$ in terms of Slater determinants constructed from a single-particle basis set $\phi_1(r), ..., \phi_L(r)$.
-The problem with the Slater determinant is that it scales exponentially with the number of particles $N$. From the perspective of computational cost, it translates to $O(n^3)$ complexity, when solving the Slater determinant with LU decomposition. The main goal of this thesis is to verify an ansatz alternative to the Slater determinant, which could bring down the computational cost to $O(n^2)$, thus being a more efficient representation for fermionic wavefunctions. Such an ansatz was first proposed to use a symmetrical part and an antisymmetric part as arguments to a neural network \cite{fu_minimal_2025}.
-
-\begin{equation}
-\psi(r_1 ,..., r_n) = \Psi( r_1, ...,r_n,  \eta(r_1 ,..., r_n  ))
-\end{equation}
-
-
-Where $\Psi$ is implemented as a Neural Network. While we know how to make a symmetrized Ansatz for the bosonic case (Section~\ref{tab:deepsets}), the challenge is to construct the so-called \textit{signature encoder}:
-
-\begin{equation}
-    \eta = \prod_{1 \le j < i \le N} (x_i - x_j)
-\end{equation}
-
-This can be extended to two dimensions using complex coordinates.
-
-\begin{equation}
-    \eta = \eta_1 + i \eta_2 = \prod_{1 \le j < i \le N} (z_i - z_j)
-\end{equation}
-
-
-Later in this work we use a regularised version of $\eta$ for stability at the nodes, i.e. when $|z_i - z_j| \rightarrow 0$:
-
-\begin{equation}
-\label{eq:eta}
-\eta = \prod_{1 \le j < i \le N} \frac{z_i - z_j}{\sqrt{|z_i - z_j|^2 + a^2}}
-\end{equation}
-
 \subsubsection{Deep Sets}
 \label{tab:deepsets}
 
 \subsubsection{Holomorphic Trap}
 \label{sec:lazy_trap}
 
-The construction above has a shortcut built into it. For any smooth symmetric function $g(\xi)$, the state
+We will dicuss it more in results section \ref{sec:results}, but following must be mentioned now. The construction above has a shortcut built into it. For any smooth symmetric function $g(\xi)$, the state
 
 \begin{equation}
     \psi(r_1,...,r_N) = \eta(r_1,...,r_N) \cdot g(\xi(r_1,...,r_N)) \cdot e^{-\sum_i r_i^2/2}
 \end{equation}
 
-is automatically antisymmetric, since $\eta$ already flips sign under every particle exchange. The network does not have to learn anything about the sign structure to satisfy the Pauli principle -- it can simply ignore the phase of $\eta$ and output a plain symmetric prefactor. This is not a bug of a particular training run, it is a property of the ansatz itself.
+is automatically antisymmetric, since $\eta$ already flips sign under every particle exchange. Thus network does not have to learn anything about the sign structure to satisfy the Pauli principle -- it can simply ignore the phase of $\eta$ and output a plain symmetric prefactor. This creates a bias towards the holomorphic (I honestly dont like name holomorphic here) trap which , it is a property of the ansatz itself and will cause troubles in actual implementation further. 
 
 The simplest such choice, $g \equiv \text{const}$, turns out to be an exact eigenstate of the non-interacting Hamiltonian. Writing particle positions as complex numbers $z_i = x_i + i y_i$, the signature encoder for $\dim=2$ is the complex Vandermonde determinant
 
