@@ -349,9 +349,11 @@ Within this loop there are several classes in which our code is devided: \texttt
 The object \textbf{System} includes a description of the continuous Hilbert space we work with, its dimension, and the Hamiltonian (namely the potential part) for which we solve Schrödinger's equation. Concretely, this Hilbert space is NetKet's \texttt{Particle} Hilbert space over free space -- no periodic boundary conditions are implemented -- and the Hamiltonian is a fixed kinetic-energy operator plus the potential term below. It's worth noting that antisymmetrization of the state is enforced by the Ansatz (Neural Quantum State), not by the System.
 
 Three potentials are implemented, selected via \texttt{system.potential}:
-- \texttt{qho\_no\_inter}: the isotropic harmonic trap, $V(x) = \frac{1}{2}\sum_i r_i^2$ -- the main benchmark system throughout this thesis.
-- \texttt{qho\_aniso}: an anisotropic trap, $V(x) = \frac{1}{2}\sum_i (x_i^2 + \omega_y^2 y_i^2)$, controlled by \texttt{system.omega\_y} -- breaks rotational symmetry deliberately, used to test whether the ansatz's behaviour is specific to the isotropic case.
-- \texttt{dot\_gauss}: an interacting quantum dot, the trap plus a Gaussian repulsion $\lambda \sum_{i<j} \exp(-r_{ij}^2/2s^2)$, controlled by \texttt{system.int\_strength} ($\lambda$) and \texttt{system.int\_range} ($s$). This system has no closed-form ground state, so the reference energy \texttt{system.e\_ref} must be supplied from an exact diagonalization instead (Section~\ref{sec:diagnostics}).
+\begin{itemize}
+    \item \texttt{qho\_no\_inter}: the isotropic harmonic trap, $V(x) = \frac{1}{2}\sum_i r_i^2$ -- the main benchmark system throughout this thesis.
+    \item \texttt{qho\_aniso}: an anisotropic trap, $V(x) = \frac{1}{2}\sum_i (x_i^2 + \omega_y^2 y_i^2)$, controlled by \texttt{system.omega\_y} -- breaks rotational symmetry deliberately, used to test whether the ansatz's behaviour is specific to the isotropic case.
+    \item \texttt{dot\_gauss}: an interacting quantum dot, the trap plus a Gaussian repulsion $\lambda \sum_{i<j} \exp(-r_{ij}^2/2s^2)$, controlled by \texttt{system.int\_strength} ($\lambda$) and \texttt{system.int\_range} ($s$). This system has no closed-form ground state, so the reference energy \texttt{system.e\_ref} must be supplied from an exact diagonalization instead (Section~\ref{sec:diagnostics}).
+\end{itemize}
 
 Other System parameters: \texttt{N}, the number of particles; \texttt{dim}, the dimension of the continuous Hilbert space (this thesis focuses on \texttt{dim=2}); and \texttt{mass}, the particle mass (kept at 1 throughout).
 
@@ -364,23 +366,29 @@ and Flax~\cite{heek_flax_2024}.
 \subsection{Sampler and Trainer}
 
 The Sampler proposes new particle coordinates via a custom Metropolis rule, \texttt{SamplerExchangeRule}, mixing two kinds of moves:
-- a Gaussian drift, $r \rightarrow r + \sigma \cdot \mathcal{N}(0,1)$, with step size \texttt{sampler.sigma};
-- a particle-exchange move, swapping the full coordinates of two randomly chosen particles, proposed with probability \texttt{sampler.exchange\_prob}.
+\begin{itemize}
+    \item a Gaussian drift, $r \rightarrow r + \sigma \cdot \mathcal{N}(0,1)$, with step size \texttt{sampler.sigma};
+    \item a particle-exchange move, swapping the full coordinates of two randomly chosen particles, proposed with probability \texttt{sampler.exchange\_prob}.
+\end{itemize}
 
 Since $|\psi(x)|^2$ is exactly permutation-symmetric for any antisymmetric $\psi$, exchange moves are always accepted -- they carry no information about the sign of $\psi$. Their role is purely to improve mixing: without them, unwinding two particles that have drifted close to each other would require many small Gaussian steps, so exchange moves let the chains decorrelate much faster.
 
 \texttt{sampler.sigma} is auto-tuned at the start of training (\texttt{sampler.tune\_sigma}) to target an acceptance rate between 30\% and 60\% -- acceptance outside this window signals a step size that is too small (slow mixing) or too large (most moves rejected). Mixing quality itself is monitored via two standard MCMC diagnostics that NetKet computes automatically on every reported estimate: $\hat R$, the Gelman-Rubin statistic across chains (close to 1 for well-mixed chains), and the integrated autocorrelation time. \texttt{sampler.n\_chains} sets the number of independent chains run in parallel -- more chains reduce the correlation between the samples used in a single gradient estimate, at the cost of GPU memory. \texttt{sampler.sweep\_size} is the number of proposed moves per chain between recorded samples.
 
 The Trainer wraps NetKet's VMC driver and everything needed to run it to convergence:
-- \texttt{trainer.lr} is the base learning rate, decayed exponentially with rate \texttt{trainer.lr\_decay\_rate} every \texttt{trainer.lr\_decay\_steps} iterations.
-- \texttt{trainer.optimizer} selects between \texttt{sgd}, \texttt{momentum} (with \texttt{trainer.momentum\_beta}), and plain \texttt{adam} (no SR, used only for the optimizer comparison in Section~\ref{sec:results}).
-- \texttt{trainer.vmc\_iters} is the number of training iterations; \texttt{trainer.n\_samples} and \texttt{trainer.n\_discard\_per\_chain} set the number of Monte Carlo samples used per gradient step and the burn-in discarded from the start of each chain.
-- \texttt{trainer.diag\_shift} is the diagonal shift $\lambda$ introduced in Section~\ref{sec:SR}; \texttt{trainer.pinv\_rtol}/\texttt{pinv\_atol} control the tolerance of the Cholesky-based solver used to invert the (shifted) S matrix.
-- \texttt{trainer.chunk\_size} splits the batch of samples into smaller chunks for the forward/backward pass, trading speed for GPU memory -- necessary since the S matrix scales as (number of samples)$^2$ under the kernel trick (\texttt{use\_ntk=True}) used throughout.
+\begin{itemize}
+    \item \texttt{trainer.lr} is the base learning rate, decayed exponentially with rate \texttt{trainer.lr\_decay\_rate} every \texttt{trainer.lr\_decay\_steps} iterations.
+    \item \texttt{trainer.optimizer} selects between \texttt{sgd}, \texttt{momentum} (with \texttt{trainer.momentum\_beta}), and plain \texttt{adam} (no SR, used only for the optimizer comparison in Section~\ref{sec:results}).
+    \item \texttt{trainer.vmc\_iters} is the number of training iterations; \texttt{trainer.n\_samples} and \texttt{trainer.n\_discard\_per\_chain} set the number of Monte Carlo samples used per gradient step and the burn-in discarded from the start of each chain.
+    \item \texttt{trainer.diag\_shift} is the diagonal shift $\lambda$ introduced in Section~\ref{sec:SR}; \texttt{trainer.pinv\_rtol}/\texttt{pinv\_atol} control the tolerance of the Cholesky-based solver used to invert the (shifted) S matrix.
+    \item \texttt{trainer.chunk\_size} splits the batch of samples into smaller chunks for the forward/backward pass, trading speed for GPU memory -- necessary since the S matrix scales as (number of samples)$^2$ under the kernel trick (\texttt{use\_ntk=True}) used throughout.
+\end{itemize}
 
 Two safety mechanisms sit around the driver:
-- a trust-region rescaling of the SR step: if the natural-gradient step's squared norm $\langle \delta\theta | S | \delta\theta\rangle$ exceeds a fixed threshold (hardcoded to 900), the step is rescaled down rather than discarded, guarding against ill-conditioned updates without freezing training entirely.
-- an auto-rollback guard (\texttt{trainer.auto\_rollback}): if the energy becomes non-finite, or exceeds the best value seen so far by more than \texttt{trainer.rollback\_margin} (or $5\sigma$ of the local-energy variance, whichever is larger), training stops, the parameters are restored from the last good checkpoint, the learning rate is halved, and training resumes -- up to \texttt{trainer.max\_retries} times.
+\begin{itemize}
+    \item a trust-region rescaling of the SR step: if the natural-gradient step's squared norm $\langle \delta\theta | S | \delta\theta\rangle$ exceeds a fixed threshold (hardcoded to 900), the step is rescaled down rather than discarded, guarding against ill-conditioned updates without freezing training entirely.
+    \item an auto-rollback guard (\texttt{trainer.auto\_rollback}): if the energy becomes non-finite, or exceeds the best value seen so far by more than \texttt{trainer.rollback\_margin} (or $5\sigma$ of the local-energy variance, whichever is larger), training stops, the parameters are restored from the last good checkpoint, the learning rate is halved, and training resumes -- up to \texttt{trainer.max\_retries} times.
+\end{itemize}
 
 Whenever \texttt{trainer.validation} is enabled, every 50 steps the current parameters are checkpointed to disk and re-evaluated on a freshly seeded, independent Markov chain -- decorrelated from the training chain -- to get an unbiased ``Validation Energy'' alongside the (potentially autocorrelated) training-chain estimate. This is the number reported throughout Section~\ref{sec:results}.
 
@@ -392,13 +400,15 @@ Two further optional training-time penalties (\texttt{trainer.holo\_penalty}/\te
 As introduced in Section~\ref{sec:nn_ansatz}, the FermiSets ansatz is built from a symmetric Deep Sets embedding $\xi$ and the antisymmetric signature encoder $\eta$. The architecture is shown in Figure~\ref{fig:fermisets_architecture}: a shared per-particle encoder $\phi$, a symmetric sum-pool and decoder $\rho$ producing $\xi$, and a head $\Psi$ combining $\xi$ with $\mathrm{Re}(\eta)$ and $\mathrm{Im}(\eta)$ into the final log-amplitude, evaluated at both $+\eta$ and $-\eta$ and recombined to enforce the sign flip exactly.
 
 The relevant parameters:
-- \texttt{N} is the number of particles in the system.
-- \texttt{dim} is the dimension of the continuous Hilbert space.
-- \texttt{hidden\_units} is the width of $\phi$ and $\rho$ (the encoder/decoder hidden layers).
-- \texttt{out\_units} is the width of the final $\Psi$ head, split evenly between the log-modulus and phase channels.
-- \texttt{lz\_proj\_K} enables the $L_z$-sector projection described in Section~\ref{sec:results}: averaging the log-amplitude over $K$ rotated copies of the input. $K=0$ or $1$ disables it.
-- \texttt{pair\_hidden} enables an optional pairwise feature stream (Section~\ref{sec:results}), giving the symmetric part direct access to pairwise distances; 0 disables it.
-- \texttt{pretrained\_path} loads a previous run's checkpoint to warm-start training, instead of a random initialization.
+\begin{itemize}
+    \item \texttt{N} is the number of particles in the system.
+    \item \texttt{dim} is the dimension of the continuous Hilbert space.
+    \item \texttt{hidden\_units} is the width of $\phi$ and $\rho$ (the encoder/decoder hidden layers).
+    \item \texttt{out\_units} is the width of the final $\Psi$ head, split evenly between the log-modulus and phase channels.
+    \item \texttt{lz\_proj\_K} enables the $L_z$-sector projection described in Section~\ref{sec:results}: averaging the log-amplitude over $K$ rotated copies of the input. $K=0$ or $1$ disables it.
+    \item \texttt{pair\_hidden} enables an optional pairwise feature stream (Section~\ref{sec:results}), giving the symmetric part direct access to pairwise distances; 0 disables it.
+    \item \texttt{pretrained\_path} loads a previous run's checkpoint to warm-start training, instead of a random initialization.
+\end{itemize}
 
 Two accepted config keys, \texttt{pool\_fct\_name} and \texttt{L}, are currently unused in the implementation -- reserved for a pooling-function choice that was never needed in practice.
 
@@ -421,8 +431,10 @@ Another practical detail: NetKet expects the ansatz to return $\log \psi$, never
 Before any training run, a suite of structural sanity checks (\texttt{tests/stage0\_sanity.py}) verifies the ansatz itself is correct: exact antisymmetry under all pairwise swaps, evenness/oddness of $\eta$ under exchange, finite gradients and no NaNs near particle collisions, and the correct exact energies for known limits. Runs are only started once these pass.
 
 Two further tools are referenced in Section~\ref{sec:results}:
-- an overlap diagnostic (importance sampling from an $\mathcal{N}(0,1)$ proposal) measures $|\langle \psi_{NN} | \phi \rangle|^2$ between a trained checkpoint and a chosen analytic candidate state $\phi$, used to identify which state a run has actually converged to, beyond just its energy.
-- for the interacting dot, the reference energy \texttt{system.e\_ref} is obtained from an exact diagonalization in the oscillator basis (\texttt{tools/ed\_dot.py}), since no closed-form ground state exists once the Gaussian repulsion is switched on.
+\begin{itemize}
+    \item an overlap diagnostic (importance sampling from an $\mathcal{N}(0,1)$ proposal) measures $|\langle \psi_{NN} | \phi \rangle|^2$ between a trained checkpoint and a chosen analytic candidate state $\phi$, used to identify which state a run has actually converged to, beyond just its energy.
+    \item for the interacting dot, the reference energy \texttt{system.e\_ref} is obtained from an exact diagonalization in the oscillator basis (\texttt{tools/ed\_dot.py}), since no closed-form ground state exists once the Gaussian repulsion is switched on.
+\end{itemize}
 
 \newpage
 
@@ -566,11 +578,11 @@ For such a system we know for a fact that $[\hat{H}, \hat{L}_z] = 0$, meaning th
 
 We thus need to project our neural network onto definite sectors of $\hat{L}_z$. The way we achieve this is to apply a rotation $K$ times, with angles $\theta_k = \frac{2\pi k}{K}$ for $k=0,1,\dots,K-1$, to the coordinates fed into the symmetric part (Neural Network), and then average the result. We must note that this increases the computational cost by a factor of $K$. Hence the cost of the ansatz is $O(K \cdot n^2)$ compared to $O(n^3)$ in the case of the Slater determinant ansatz. The scaling of the error with $K$ and $N$ is yet to be studied.
 
-- $N=3$: converges nicely.
-
-- $N=6$: $K=3,4,6$ are slower to converge than Slater, getting stuck and slowing around $E=17$.
-
-- $N=10$: blows up.
+\begin{itemize}
+    \item $N=3$: converges nicely.
+    \item $N=6$: $K=3,4,6$ are slower to converge than Slater, getting stuck and slowing around $E=17$.
+    \item $N=10$: blows up.
+\end{itemize}
 
 
 
