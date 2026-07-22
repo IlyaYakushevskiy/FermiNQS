@@ -161,7 +161,7 @@ inefficient representation. The Hilbert space of a quantum many-body system is a
 with an incredibly large number of quantum states. Not all quantum states in the Hilbert space of a many-body system are equal: some are more relevant than others.
 In particular, one can prove that low-energy eigenstates of gapped Hamiltonians with local interactions obey the so-called area-law for the entanglement entropy. This means that the entanglement entropy of a region of space tends to scale, for large enough regions, as the size of the boundary of the region and not as the volume. And this is a remarkable property, because a quantum state picked at random from a many-body Hilbert space will most likely have an entanglement entropy between subregions that will scale like the volume, and not like the area. In other words, low-energy states of realistic Hamiltonians are not just “any” state in the Hilbert space: they are heavily constrained by locality so that they must obey the entanglement area-law.
 
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.5\linewidth]{hilbert_space_corner.png}
     \caption{The physically relevant corner of Hilbert space, reproduced from \cite{orus_practical_2014}.}
@@ -423,7 +423,7 @@ Note that \texttt{sampler.n\_chains}, \texttt{trainer.n\_samples}, and \texttt{t
 
 Another practical detail: NetKet expects the ansatz to return $\log \psi$, never $\psi$ itself: exponentiating anywhere inside the network would immediately overflow for even moderately sized systems.
 
-\begin{figure}
+\begin{figure}[H]
     \centering
     \includegraphics[width=1\linewidth]{fermisets_architecture.pdf}
     \caption{FermiSets architecture: shared per-particle encoder $\phi$, symmetric pooling and decoder $\rho$ producing $\xi$, combined with the signature encoder $\eta$ in the $\Psi$ head.}
@@ -590,7 +590,7 @@ However, the inverse is often ill-defined. One reason is that Monte Carlo estima
 \subsection{Hyperparameter Optimization}
 \paragraph{Effect of hidden layer size}
 
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
     \includegraphics[width=15cm,height=10cm,keepaspectratio]{plots/Mean_energy_convergence_for_N=4_and_varied_hidden_size.png}
     \caption{Mean energy convergence for the $N=4$ QHO benchmark, varying hidden layer size. All configurations converge to the same $E=10$ Laughlin/trap state regardless of capacity.}
