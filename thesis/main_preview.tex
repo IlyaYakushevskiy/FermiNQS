@@ -178,9 +178,7 @@ In particular, one can prove that low-energy eigenstates of gapped Hamiltonians 
     \label{fig:hilbert_corner}
 \end{figure}
 
-\cite{lange_architectures_2024}
-
-
+A broader survey of neural-network wavefunction architectures across this landscape is given in \cite{lange_architectures_2024}.
 
 Literature on the topic has well documented the Fermionic Sign Problem, which appears in VMC setups as a consequence of the Pauli principle and constitutes a big computational challenge for VMC setups. However, in our case this is not a direct concern: we sample directly from $|\psi(x)|^2$ using an explicit variational ansatz, so the sign of $\psi$ is built into the ansatz itself, rather than inferred by the sampler against a bosonic reference. Hence we completely focus on the cost scaling of the antisymmetric part, not on sampling noise from sign cancellation.
 
@@ -234,7 +232,13 @@ We are concerned with the problem of calculating the optimal update to $\theta$,
     \delta \theta = S^{-1} g
 \end{equation}
 
-Since the S matrix is symmetric and positive semi-definite, we use Cholesky decomposition to solve for the inverse of the system. Here we need to introduce a parameter we will use later, called the diagonal shift. It helps with ill-conditioned S matrices -- the concrete parameter values used and how they were tuned are given in Section~\ref{impl:sys}.
+Since the S matrix is symmetric and positive semi-definite, we use Cholesky decomposition to solve for the inverse of the system. In practice, Monte Carlo estimates of $S$ are noisy and can become near-singular, particularly early in training or close to convergence, where the sampled gradients become nearly linearly dependent. To keep the inversion well behaved we add a small multiple of the identity before inverting,
+\begin{equation}
+    S \rightarrow S + \lambda I,
+\end{equation}
+a parameter we call the diagonal shift $\lambda$: it trades a small bias in the update direction for a much better-conditioned inverse. The concrete values used and how they were tuned are given in Section~\ref{impl:sys}.
+
+Together, the variational principle, the local-energy estimator, and the SR-preconditioned update give us the full VMC machinery: sample from $|\psi_\theta(x)|^2$, estimate $E_{loc}(x)$ and its gradient, and take a natural-gradient step towards lower energy. What remains is the choice of $\psi_\theta$ itself -- the neural network ansatz, which is the subject of the rest of this chapter.
 
 \newpage
 
@@ -255,6 +259,16 @@ Where $\Psi$ is implemented as a Neural Network. While we know how to make a sym
 \begin{equation}
     \eta = \prod_{1 \le j < i \le N} (x_i - x_j)
 \end{equation}
+
+This is the Vandermonde determinant of the coordinates $x_1,...,x_N$ (equivalently, $\det[x_i^{k-1}]_{i,k=1}^N$): antisymmetric by construction, and vanishing exactly when two coordinates coincide.
+
+This particular choice is not arbitrary. Any totally antisymmetric function $F(x_1,...,x_N)$ can be written as
+\begin{equation}
+    F(x_1,...,x_N) = \eta(x_1,...,x_N) \cdot g(x_1,...,x_N)
+\end{equation}
+for some symmetric function $g$: both $F$ and $\eta$ flip sign under every transposition of two particles, so their ratio $F/\eta$ is invariant under every transposition, wherever $\eta \neq 0$, and hence symmetric under the full permutation group. In this sense, the construction $\psi = \Psi(\xi, \eta)$ is universal -- for a sufficiently expressive $g$ (played here by the network $\Psi$), it can in principle represent \emph{any} fermionic wavefunction, including the Slater determinant itself. This is exactly the claim in \cite{fu_minimal_2025}, and the general strategy of dressing a Vandermonde-type factor with a symmetric function is also what underlies the Laughlin wavefunctions of the fractional quantum Hall effect mentioned in the Abstract.
+
+Whether that representational universality is actually reachable by gradient-based training from a random initialization is a separate question. We show in Section~\ref{sec:lazy_trap} that it is not, in general: the $g$ needed to reproduce a generic Slater determinant from $\eta$ is not smooth at particle collisions, unlike the trivial choice $g \equiv \text{const}$, which is why the network finds the latter and gets stuck there.
 
 This can be extended to two dimensions using complex coordinates.
 
