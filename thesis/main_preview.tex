@@ -346,16 +346,21 @@ Within this loop there are several classes in which our code is devided: \texttt
 \subsection{System}
 \label{impl:sys}
 
-The object \textbf{System} includes a description of the continuous Hilbert space we work with, its dimension, and the Hamiltonian (namely the potential part) for which we solve Schrödinger's equation. Concretely, this Hilbert space is NetKet's \texttt{Particle} Hilbert space over free space (no periodic boundary conditions are implemented), and the Hamiltonian is a fixed kinetic-energy operator plus the potential term below. It's worth noting that antisymmetrization of the state is enforced by the Ansatz (Neural Quantum State), not by the System.
+The object \textbf{System} includes a description of the continuous Hilbert space we work with, its dimension, and the Hamiltonian for which we solve Schrödinger's equation. Concretely, this Hilbert space is NetKet's \texttt{Particle} Hilbert space over free space (no periodic boundary conditions are implemented). It's worth noting that antisymmetrization of the state is enforced by the Ansatz (Neural Quantum State), not by the System.
 
-Three potentials are implemented, selected via \texttt{system.potential}:
+For $N$ particles of mass $m$ in $\texttt{dim}$ dimensions, the Hamiltonian we solve throughout this thesis is
+\begin{equation}
+\label{eq:hamiltonian}
+\hat{H} = \sum_{i=1}^{N} \left[ -\frac{\hbar^{2}}{2m}\nabla_i^{2} \right] + V(r_1,...,r_N),
+\end{equation}
+a fixed kinetic-energy operator (\texttt{mass} sets $m$, kept at 1 throughout) plus a potential term $V$ that varies between experiments. Three potentials are implemented, selected via \texttt{system.potential}:
 \begin{itemize}
     \item \texttt{qho\_no\_inter}: the isotropic harmonic trap, $V(x) = \frac{1}{2}\sum_i r_i^2$, the main benchmark system throughout this thesis.
     \item \texttt{qho\_aniso}: an anisotropic trap, $V(x) = \frac{1}{2}\sum_i (x_i^2 + \omega_y^2 y_i^2)$, controlled by \texttt{system.omega\_y}, breaking rotational symmetry deliberately, used to test whether the ansatz's behaviour is specific to the isotropic case.
     \item \texttt{dot\_gauss}: an interacting quantum dot, the trap plus a Gaussian repulsion $\lambda \sum_{i<j} \exp(-r_{ij}^2/2s^2)$, controlled by \texttt{system.int\_strength} ($\lambda$) and \texttt{system.int\_range} ($s$). This system has no closed-form ground state, so the reference energy \texttt{system.e\_ref} must be supplied from an exact diagonalization instead (Section~\ref{sec:diagnostics}).
 \end{itemize}
 
-Other System parameters: \texttt{N}, the number of particles; \texttt{dim}, the dimension of the continuous Hilbert space (this thesis focuses on \texttt{dim=2}); and \texttt{mass}, the particle mass (kept at 1 throughout).
+\texttt{N} and \texttt{dim} in Equation~\ref{eq:hamiltonian} are config keys directly; this thesis focuses on \texttt{dim=2}.
 
 The configuration file for the canonical benchmark experiment (\texttt{Experiment}\footnote{\url{https://github.com/IlyaYakushevskiy/FermiNQS/blob/main/configs/experiment/qho_fermisets_2d_3N_bench.yaml}}) and the ansatz implementation (\texttt{Ansatz}\footnote{\url{https://github.com/IlyaYakushevskiy/FermiNQS/blob/main/src/ansatz.py}}) are both available online.
 
@@ -444,7 +449,7 @@ Two further tools are referenced in Section~\ref{sec:results}:
 For the system discussed in Section~\ref{impl:sys} we are going to do an ablation study, according to \cite{godbole_deep_2023}.
 
 
-We are going to start with the simplest system, 4 spinless fermions in a Quantum Harmonic Oscillator potential, with the following Hamiltonian, to test our ansatz:
+We are going to start with the simplest system, 4 spinless fermions in a Quantum Harmonic Oscillator potential, to test our ansatz: Equation~\ref{eq:hamiltonian} specialized to $N=4$, \texttt{qho\_no\_inter}, with $\hbar=m=\omega=1$:
 
 \begin{equation}
 \hat{H}_0
