@@ -172,7 +172,7 @@ A broader survey of neural-network wavefunction architectures across this landsc
 
 Literature on the topic has well documented the Fermionic Sign Problem, which appears in VMC setups as a consequence of the Pauli principle and constitutes a big computational challenge for VMC setups. However, in our case this is not a direct concern: we sample directly from $|\psi(x)|^2$ using an explicit variational ansatz, so the sign of $\psi$ is built into the ansatz itself, rather than inferred by the sampler against a bosonic reference. Hence we completely focus on the cost scaling of the antisymmetric part, not on sampling noise from sign cancellation.
 
-However, in our case we work with continuous space, meaning that arguments to our wavefunction are directly the coordinates of the particles, in first quantization, rather than occupation numbers on a fixed lattice or discrete basis set -- there is no basis-set truncation error to worry about, the network parametrizes the wavefunction directly, which is exactly the Universal Approximation Theorem argument from the Introduction. It also means sampling must proceed via continuous-space Metropolis moves (Section~\ref{impl:sys}), rather than the discrete-occupation updates used in most lattice NQS work, and that the natural symmetries to exploit are continuous ones (e.g.\ rotations), not discrete lattice symmetries -- a point we return to in Section~\ref{sec:results}.
+However, in our case we work with continuous space, meaning that arguments to our wavefunction are directly the coordinates of the particles, in first quantization, rather than occupation numbers on a fixed lattice or discrete basis set: there is no basis-set truncation error to worry about, the network parametrizes the wavefunction directly, which is exactly the Universal Approximation Theorem argument from the Introduction. It also means sampling must proceed via continuous-space Metropolis moves (Section~\ref{impl:sys}), rather than the discrete-occupation updates used in most lattice NQS work, and that the natural symmetries to exploit are continuous ones (e.g.\ rotations), not discrete lattice symmetries, a point we return to in Section~\ref{sec:results}.
 \newpage
 
 \subsection{Variational Monte Carlo}
@@ -228,7 +228,7 @@ Since the S matrix is symmetric and positive semi-definite, we use Cholesky deco
 \end{equation}
 a parameter we call the diagonal shift $\lambda$: it trades a small bias in the update direction for a much better-conditioned inverse. The concrete values used and how they were tuned are given in Section~\ref{impl:sys}.
 
-Together, the variational principle, the local-energy estimator, and the SR-preconditioned update give us the full VMC machinery: sample from $|\psi_\theta(x)|^2$, estimate $E_{loc}(x)$ and its gradient, and take a natural-gradient step towards lower energy. What remains is the choice of $\psi_\theta$ itself -- the neural network ansatz, which is the subject of the rest of this chapter.
+Together, the variational principle, the local-energy estimator, and the SR-preconditioned update give us the full VMC machinery: sample from $|\psi_\theta(x)|^2$, estimate $E_{loc}(x)$ and its gradient, and take a natural-gradient step towards lower energy. What remains is the choice of $\psi_\theta$ itself (the neural network ansatz), which is the subject of the rest of this chapter.
 
 \newpage
 
@@ -257,7 +257,7 @@ This particular choice is not arbitrary. Any totally antisymmetric function $F(x
     F(x_1,...,x_N) = \eta(x_1,...,x_N) \cdot g(x_1,...,x_N)
 \end{equation}
 for some symmetric function $g$: both $F$ and $\eta$ flip sign under every transposition of two particles, so their ratio $F/\eta$ is invariant under every transposition, wherever $\eta \neq 0$, and hence symmetric under the full permutation group. 
-In this sense, the construction $\psi = \Psi(\xi, \eta)$ is universal -- for a sufficiently expressive $g$ (played here by the network $\Psi$), it can in principle represent \emph{any} fermionic wavefunction, including the Slater determinant itself. This is exactly the claim in \cite{fu_minimal_2025}, and the general strategy of dressing a Vandermonde-type factor with a symmetric function is also what underlies the Laughlin wavefunctions of the fractional quantum Hall effect mentioned in the Abstract.
+In this sense, the construction $\psi = \Psi(\xi, \eta)$ is universal: for a sufficiently expressive $g$ (played here by the network $\Psi$), it can in principle represent \emph{any} fermionic wavefunction, including the Slater determinant itself. This is exactly the claim in \cite{fu_minimal_2025}, and the general strategy of dressing a Vandermonde-type factor with a symmetric function is also what underlies the Laughlin wavefunctions of the fractional quantum Hall effect mentioned in the Abstract.
 
 Whether that representational universality is actually reachable by gradient-based training from a random initialization is a separate question. We show in Section~\ref{sec:lazy_trap} that it is not, in general: the $g$ needed to reproduce a generic Slater determinant from $\eta$ is not smooth at particle collisions, unlike the trivial choice $g \equiv \text{const}$, which is why the network finds the latter and gets stuck there.
 
@@ -291,7 +291,7 @@ As a direct baseline for comparison, we also implement a standard Slater-determi
 \begin{equation}
     \psi(r_1,...,r_N) = \det\left[\phi_k(r_i)\right]_{i,k=1}^N,
 \end{equation}
-evaluated via \texttt{slogdet} for numerical stability. This is the $O(n^3)$ reference our FermiSets construction is compared against throughout Section~\ref{sec:results}: same envelope convention, same training pipeline -- only the antisymmetrization mechanism differs.
+evaluated via \texttt{slogdet} for numerical stability. This is the $O(n^3)$ reference our FermiSets construction is compared against throughout Section~\ref{sec:results}: same envelope convention, same training pipeline; only the antisymmetrization mechanism differs.
 
 \subsubsection{The Lazy-State Trap}
 \label{sec:lazy_trap}
@@ -302,7 +302,7 @@ We will discuss this further in the Results section (\ref{sec:results}), but the
     \psi(r_1,...,r_N) = \eta(r_1,...,r_N) \cdot g(\xi(r_1,...,r_N)) \cdot e^{-\sum_i r_i^2/2}
 \end{equation}
 
-is automatically antisymmetric, since $\eta$ already flips sign under every particle exchange. The network does not have to learn anything about the sign structure to satisfy the Pauli principle -- it can simply ignore the phase of $\eta$ and output a plain symmetric prefactor. This creates a bias towards the lazy-state trap, a property of the ansatz itself that will cause trouble in the actual implementation, discussed further below.
+is automatically antisymmetric, since $\eta$ already flips sign under every particle exchange. The network does not have to learn anything about the sign structure to satisfy the Pauli principle: it can simply ignore the phase of $\eta$ and output a plain symmetric prefactor. This creates a bias towards the lazy-state trap, a property of the ansatz itself that will cause trouble in the actual implementation, discussed further below.
 
 The simplest such choice, $g \equiv \text{const}$, turns out to be an exact eigenstate of the non-interacting Hamiltonian. Writing particle positions as complex numbers $z_i = x_i + i y_i$, the signature encoder for $\dim=2$ is the complex Vandermonde determinant
 
@@ -316,9 +316,9 @@ which is exactly the Slater determinant built from the single-particle orbitals 
     E_{\text{lazy}} = \hbar\omega \sum_{k=0}^{N-1} (k+1) = \hbar\omega\, \frac{N(N+1)}{2}.
 \end{equation}
 
-Because $E_\text{lazy}$ is a true eigenvalue of $\hat H$, this state is an exact stationary point of the energy expectation value $\langle \psi | \hat H | \psi\rangle / \langle \psi|\psi\rangle$ \cite{becca_quantum_2017}: the energy gradient vanishes there identically, for any architecture, no matter what it is in principle capable of representing elsewhere. Gradient-based VMC has no local incentive to leave this state once it lands there. And since $g \equiv \text{const}$ is the easiest possible function to reach from a random initialization, it lands there almost every time. We call this the \textit{lazy-state trap}: not a failure of expressivity, but of trainability -- the network can represent the true ground state (we show this directly in Section~\ref{sec:results}), it just has no gradient telling it to go there.
+Because $E_\text{lazy}$ is a true eigenvalue of $\hat H$, this state is an exact stationary point of the energy expectation value $\langle \psi | \hat H | \psi\rangle / \langle \psi|\psi\rangle$ \cite{becca_quantum_2017}: the energy gradient vanishes there identically, for any architecture, no matter what it is in principle capable of representing elsewhere. Gradient-based VMC has no local incentive to leave this state once it lands there. And since $g \equiv \text{const}$ is the easiest possible function to reach from a random initialization, it lands there almost every time. We call this the \textit{lazy-state trap}: not a failure of expressivity, but of trainability: the network can represent the true ground state (we show this directly in Section~\ref{sec:results}), it just has no gradient telling it to go there.
 
-Nothing in this argument is specific to the isotropic harmonic trap. The trapped family, more generally, consists of any state whose antisymmetric part is a product of pairwise coordinate differences -- what we call a \textit{sortable} sign structure, since it is exactly the sign structure a sorting of the particles would produce. The true 2D ground state instead has a sign structure built from a signed area (e.g.\ $\det\{1,x,y\}$ for $N=3$), which cannot be factored into pairwise terms. It is this genuinely two-dimensional antisymmetry, not the harmonic potential specifically, that the ansatz fails to reach unaided -- we confirm this by repeating the experiment on a potential with no rotational symmetry to lean on, in Section~\ref{sec:results}. That section also presents two structural ways to escape the trap without ever knowing the true ground state in advance.
+Nothing in this argument is specific to the isotropic harmonic trap. The trapped family, more generally, consists of any state whose antisymmetric part is a product of pairwise coordinate differences, what we call a \textit{sortable} sign structure, since it is exactly the sign structure a sorting of the particles would produce. The true 2D ground state instead has a sign structure built from a signed area (e.g.\ $\det\{1,x,y\}$ for $N=3$), which cannot be factored into pairwise terms. It is this genuinely two-dimensional antisymmetry, not the harmonic potential specifically, that the ansatz fails to reach unaided: we confirm this by repeating the experiment on a potential with no rotational symmetry to lean on, in Section~\ref{sec:results}. That section also presents two structural ways to escape the trap without ever knowing the true ground state in advance.
 
 \newpage
 
@@ -346,12 +346,12 @@ Within this loop there are several classes in which our code is devided: \texttt
 \subsection{System}
 \label{impl:sys}
 
-The object \textbf{System} includes a description of the continuous Hilbert space we work with, its dimension, and the Hamiltonian (namely the potential part) for which we solve Schrödinger's equation. Concretely, this Hilbert space is NetKet's \texttt{Particle} Hilbert space over free space -- no periodic boundary conditions are implemented -- and the Hamiltonian is a fixed kinetic-energy operator plus the potential term below. It's worth noting that antisymmetrization of the state is enforced by the Ansatz (Neural Quantum State), not by the System.
+The object \textbf{System} includes a description of the continuous Hilbert space we work with, its dimension, and the Hamiltonian (namely the potential part) for which we solve Schrödinger's equation. Concretely, this Hilbert space is NetKet's \texttt{Particle} Hilbert space over free space (no periodic boundary conditions are implemented), and the Hamiltonian is a fixed kinetic-energy operator plus the potential term below. It's worth noting that antisymmetrization of the state is enforced by the Ansatz (Neural Quantum State), not by the System.
 
 Three potentials are implemented, selected via \texttt{system.potential}:
 \begin{itemize}
-    \item \texttt{qho\_no\_inter}: the isotropic harmonic trap, $V(x) = \frac{1}{2}\sum_i r_i^2$ -- the main benchmark system throughout this thesis.
-    \item \texttt{qho\_aniso}: an anisotropic trap, $V(x) = \frac{1}{2}\sum_i (x_i^2 + \omega_y^2 y_i^2)$, controlled by \texttt{system.omega\_y} -- breaks rotational symmetry deliberately, used to test whether the ansatz's behaviour is specific to the isotropic case.
+    \item \texttt{qho\_no\_inter}: the isotropic harmonic trap, $V(x) = \frac{1}{2}\sum_i r_i^2$, the main benchmark system throughout this thesis.
+    \item \texttt{qho\_aniso}: an anisotropic trap, $V(x) = \frac{1}{2}\sum_i (x_i^2 + \omega_y^2 y_i^2)$, controlled by \texttt{system.omega\_y}, breaking rotational symmetry deliberately, used to test whether the ansatz's behaviour is specific to the isotropic case.
     \item \texttt{dot\_gauss}: an interacting quantum dot, the trap plus a Gaussian repulsion $\lambda \sum_{i<j} \exp(-r_{ij}^2/2s^2)$, controlled by \texttt{system.int\_strength} ($\lambda$) and \texttt{system.int\_range} ($s$). This system has no closed-form ground state, so the reference energy \texttt{system.e\_ref} must be supplied from an exact diagonalization instead (Section~\ref{sec:diagnostics}).
 \end{itemize}
 
@@ -371,9 +371,9 @@ The Sampler proposes new particle coordinates via a custom Metropolis rule, \tex
     \item a particle-exchange move, swapping the full coordinates of two randomly chosen particles, proposed with probability \texttt{sampler.exchange\_prob}.
 \end{itemize}
 
-Since $|\psi(x)|^2$ is exactly permutation-symmetric for any antisymmetric $\psi$, exchange moves are always accepted -- they carry no information about the sign of $\psi$. Their role is purely to improve mixing: without them, unwinding two particles that have drifted close to each other would require many small Gaussian steps, so exchange moves let the chains decorrelate much faster.
+Since $|\psi(x)|^2$ is exactly permutation-symmetric for any antisymmetric $\psi$, exchange moves are always accepted: they carry no information about the sign of $\psi$. Their role is purely to improve mixing: without them, unwinding two particles that have drifted close to each other would require many small Gaussian steps, so exchange moves let the chains decorrelate much faster.
 
-\texttt{sampler.sigma} is auto-tuned at the start of training (\texttt{sampler.tune\_sigma}) to target an acceptance rate between 30\% and 60\% -- acceptance outside this window signals a step size that is too small (slow mixing) or too large (most moves rejected). Mixing quality itself is monitored via two standard MCMC diagnostics that NetKet computes automatically on every reported estimate: $\hat R$, the Gelman-Rubin statistic across chains (close to 1 for well-mixed chains), and the integrated autocorrelation time. \texttt{sampler.n\_chains} sets the number of independent chains run in parallel -- more chains reduce the correlation between the samples used in a single gradient estimate, at the cost of GPU memory. \texttt{sampler.sweep\_size} is the number of proposed moves per chain between recorded samples.
+\texttt{sampler.sigma} is auto-tuned at the start of training (\texttt{sampler.tune\_sigma}) to target an acceptance rate between 30\% and 60\%: acceptance outside this window signals a step size that is too small (slow mixing) or too large (most moves rejected). Mixing quality itself is monitored via two standard MCMC diagnostics that NetKet computes automatically on every reported estimate: $\hat R$, the Gelman-Rubin statistic across chains (close to 1 for well-mixed chains), and the integrated autocorrelation time. \texttt{sampler.n\_chains} sets the number of independent chains run in parallel: more chains reduce the correlation between the samples used in a single gradient estimate, at the cost of GPU memory. \texttt{sampler.sweep\_size} is the number of proposed moves per chain between recorded samples.
 
 The Trainer wraps NetKet's VMC driver and everything needed to run it to convergence:
 \begin{itemize}
@@ -381,16 +381,16 @@ The Trainer wraps NetKet's VMC driver and everything needed to run it to converg
     \item \texttt{trainer.optimizer} selects between \texttt{sgd}, \texttt{momentum} (with \texttt{trainer.momentum\_beta}), and plain \texttt{adam} (no SR, used only for the optimizer comparison in Section~\ref{sec:results}).
     \item \texttt{trainer.vmc\_iters} is the number of training iterations; \texttt{trainer.n\_samples} and \texttt{trainer.n\_discard\_per\_chain} set the number of Monte Carlo samples used per gradient step and the burn-in discarded from the start of each chain.
     \item \texttt{trainer.diag\_shift} is the diagonal shift $\lambda$ introduced in Section~\ref{sec:SR}; \texttt{trainer.pinv\_rtol}/\texttt{pinv\_atol} control the tolerance of the Cholesky-based solver used to invert the (shifted) S matrix.
-    \item \texttt{trainer.chunk\_size} splits the batch of samples into smaller chunks for the forward/backward pass, trading speed for GPU memory -- necessary since the S matrix scales as (number of samples)$^2$ under the kernel trick (\texttt{use\_ntk=True}) used throughout.
+    \item \texttt{trainer.chunk\_size} splits the batch of samples into smaller chunks for the forward/backward pass, trading speed for GPU memory, necessary since the S matrix scales as (number of samples)$^2$ under the kernel trick (\texttt{use\_ntk=True}) used throughout.
 \end{itemize}
 
 Two safety mechanisms sit around the driver:
 \begin{itemize}
     \item a trust-region rescaling of the SR step: if the natural-gradient step's squared norm $\langle \delta\theta | S | \delta\theta\rangle$ exceeds a fixed threshold (hardcoded to 900), the step is rescaled down rather than discarded, guarding against ill-conditioned updates without freezing training entirely.
-    \item an auto-rollback guard (\texttt{trainer.auto\_rollback}): if the energy becomes non-finite, or exceeds the best value seen so far by more than \texttt{trainer.rollback\_margin} (or $5\sigma$ of the local-energy variance, whichever is larger), training stops, the parameters are restored from the last good checkpoint, the learning rate is halved, and training resumes -- up to \texttt{trainer.max\_retries} times.
+    \item an auto-rollback guard (\texttt{trainer.auto\_rollback}): if the energy becomes non-finite, or exceeds the best value seen so far by more than \texttt{trainer.rollback\_margin} (or $5\sigma$ of the local-energy variance, whichever is larger), training stops, the parameters are restored from the last good checkpoint, the learning rate is halved, and training resumes, up to \texttt{trainer.max\_retries} times.
 \end{itemize}
 
-Whenever \texttt{trainer.validation} is enabled, every 50 steps the current parameters are checkpointed to disk and re-evaluated on a freshly seeded, independent Markov chain -- decorrelated from the training chain -- to get an unbiased ``Validation Energy'' alongside the (potentially autocorrelated) training-chain estimate. This is the number reported throughout Section~\ref{sec:results}.
+Whenever \texttt{trainer.validation} is enabled, every 50 steps the current parameters are checkpointed to disk and re-evaluated on a freshly seeded, independent Markov chain (decorrelated from the training chain) to get an unbiased ``Validation Energy'' alongside the (potentially autocorrelated) training-chain estimate. This is the number reported throughout Section~\ref{sec:results}.
 
 Two further optional training-time penalties (\texttt{trainer.holo\_penalty}/\texttt{deflation\_penalty} and their associated hyperparameters) exist for one exploratory trap-escape approach discussed as future work in Section~\ref{sec:results}; they are not used in the ansatz's main results.
 
@@ -410,13 +410,13 @@ The relevant parameters:
     \item \texttt{pretrained\_path} loads a previous run's checkpoint to warm-start training, instead of a random initialization.
 \end{itemize}
 
-Two accepted config keys, \texttt{pool\_fct\_name} and \texttt{L}, are currently unused in the implementation -- reserved for a pooling-function choice that was never needed in practice.
+Two accepted config keys, \texttt{pool\_fct\_name} and \texttt{L}, are currently unused in the implementation, reserved for a pooling-function choice that was never needed in practice.
 
 The regularisation constant $a$ in the regularised signature encoder (Equation~\ref{eq:eta}) is currently hardcoded to $1.0$ inside \texttt{eta\_antisymmetric} rather than exposed as a config key.
 
-Note that \texttt{sampler.n\_chains}, \texttt{trainer.n\_samples}, and \texttt{trainer.chunk\_size} do not affect the ansatz's own input size -- they control how many samples are evaluated in parallel (the batch dimension), not the feature dimension. The ansatz's actual input, per sample, is the flattened vector of all particle coordinates, of size $N \times \texttt{dim}$.
+Note that \texttt{sampler.n\_chains}, \texttt{trainer.n\_samples}, and \texttt{trainer.chunk\_size} do not affect the ansatz's own input size: they control how many samples are evaluated in parallel (the batch dimension), not the feature dimension. The ansatz's actual input, per sample, is the flattened vector of all particle coordinates, of size $N \times \texttt{dim}$.
 
-Another practical detail: NetKet expects the ansatz to return $\log \psi$, never $\psi$ itself -- exponentiating anywhere inside the network would immediately overflow for even moderately sized systems.
+Another practical detail: NetKet expects the ansatz to return $\log \psi$, never $\psi$ itself: exponentiating anywhere inside the network would immediately overflow for even moderately sized systems.
 
 \begin{figure}
     \centering
@@ -528,7 +528,7 @@ In our formulation of the antisymmetric function, Equation~\ref{eq:eta}, which i
 
 The best result is from run 2026-05-14/18-38-51
 
-graph for variance -- refer to zero variance principle
+graph for variance, refer to zero variance principle
 Overlap over time - oscillating behaviour ?
 TODO plot against Laughlin state
 
