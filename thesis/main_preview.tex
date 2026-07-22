@@ -150,14 +150,19 @@ The Universal Approximation Theorem tells us that with a sufficiently large line
 
 
 
-Fermions are identical particles whose total wavefunction is antisymmetric under the exchange of any two particles.
-
-- place explicit formulas for fermions 1/2 (psi- - psi+)
-
-- place slater determinant formula. 
-
-
-
+Fermions are identical particles whose total wavefunction is antisymmetric under the exchange of any two particles. For two fermions, exchanging particles 1 and 2 must flip the sign of the wavefunction,
+\begin{equation}
+    \Psi(r_1, r_2) = -\Psi(r_2, r_1).
+\end{equation}
+Given two single-particle states $\phi_a, \phi_b$, an explicit antisymmetric combination is
+\begin{equation}
+    \Psi(r_1,r_2) = \frac{1}{\sqrt{2}}\left[\phi_a(r_1)\phi_b(r_2) - \phi_a(r_2)\phi_b(r_1)\right].
+\end{equation}
+For $N$ fermions this generalizes to the Slater determinant,
+\begin{equation}
+    \Psi(r_1,...,r_N) = \frac{1}{\sqrt{N!}} \det \begin{pmatrix} \phi_1(r_1) & \cdots & \phi_1(r_N) \\ \vdots & & \vdots \\ \phi_N(r_1) & \cdots & \phi_N(r_N)\end{pmatrix},
+\end{equation}
+which is manifestly antisymmetric, since swapping any two particles swaps two columns of the determinant \cite{griffiths_introduction_2008}.
 
 \cite{orus_practical_2014} For a discrete system of, e.g., $N$ spins-1/2, the dimension of the Hilbert space is $2^N$, which
 is exponentially large in the number of particles. Therefore, representing a quantum state of the
@@ -166,19 +171,22 @@ inefficient representation. The Hilbert space of a quantum many-body system is a
 with an incredibly large number of quantum states. Not all quantum states in the Hilbert space of a many-body system are equal: some are more relevant than others.
 In particular, one can prove that low-energy eigenstates of gapped Hamiltonians with local interactions obey the so-called area-law for the entanglement entropy. This means that the entanglement entropy of a region of space tends to scale, for large enough regions, as the size of the boundary of the region and not as the volume. And this is a very remarkable property, because a quantum state picked at random from a many-body Hilbert space will most likely have an entanglement entropy between subregions that will scale like the volume, and not like the area. In other words, low-energy states of realistic Hamiltonians are not just “any” state in the Hilbert space: they are heavily constrained by locality so that they must obey the entanglement area-law.
 
-( - paste figure of targete hilbert space )
+\begin{figure}[h]
+    \centering
+    % TODO(Ilya): insert Figure 4 from Orus (2014), arXiv:1306.2164, Sec. 3.4
+    % "Hilbert space is far too large" -- schematic of the full many-body
+    % Hilbert space with the area-law-obeying corner marked out.
+    \caption{The physically relevant corner of Hilbert space, reproduced from \cite{orus_practical_2014}.}
+    \label{fig:hilbert_corner}
+\end{figure}
 
-\cite{lange_architectures_2024} 
+\cite{lange_architectures_2024}
 
 
 
+Literature on the topic has well documented the Fermionic Sign Problem, which appears in VMC setups as a consequence of the Pauli principle and constitutes a big computational challenge for VMC setups. However, in our case this is not a direct concern: we sample directly from $|\psi(x)|^2$ using an explicit variational ansatz, so the sign of $\psi$ is built into the ansatz itself, rather than inferred by the sampler against a bosonic reference (as in fixed-node/projector QMC, where the sign problem actually bites). Hence we completely focus on the cost scaling of the antisymmetric part, not on sampling noise from sign cancellation.
 
-Litterture on the topic has well documented Fermionic Sign Problem, which appears in VMC setups as a consequence of the Pauli principle and constitutes a big computational challenge for VMC setups. However in our case it is an irrelevant concern (BECAUSE, short explanation). Hence we completely focus on the cost scaling for the antisymmetric part. 
-
-
- formal mathematics of the permutation symmetric network extended with the predefined antisymmetric function.
-
-However in our case we work with continuous space, meaning that arguments to our Wavefunction are directly coordinates of the particle. 
+However in our case we work with continuous space, meaning that arguments to our Wavefunction are directly coordinates of the particle.
  - other implications of continuous space 
 \newpage
 
@@ -192,22 +200,49 @@ The base of VMC is the quantum-mechanical variational principle, one of the big 
 The known limitation of the method is it's bias to Ansatz, the first assumption of the wavefunction we start optimisation with.
 Hence over last 10 years Neural Network Ansatz \ref{sec:nn_ansatz} became increasingly more popular as it is almost always more efficient then starting from the random state.  
 
-Assuming states are orthogonal and normalised, 
-(claude rewrite those equtions Then, any quantum state | 〉 can be written as:  | 〉=∑  x  |x〉〈x| 〉 = ∑  x  (x)|x〉. (5.2)  In turn, the expectation value of an operator O over a given variational wave function | 〉 takes the following form:  〈O〉 = 〈 |O| 〉  〈|〉 =  ∑  x〈 |x〉〈x|O| 〉  ∑  x〈 |x〉〈x| 〉 . 〈O〉 =  ∑  x |〈 |x〉|2 〈x|O| 〉  〈x| 〉  ∑  x |〈 |x〉|2 =  ∑  x | (x)|2OL(x)  ∑  x | (x)|2 , (5.4)  where we have defined the local estimator of the operator O:  OL(x) = 〈x|O| 〉  〈x| 〉 . (5.5)  The important point is that  P(x) = | (x)|2  ∑  x | (x)|2)
+Assuming states are orthogonal and normalised, any quantum state $|\psi\rangle$ can be expanded in a basis $\{|x\rangle\}$ as
+\begin{equation}
+    |\psi\rangle = \sum_x \langle x|\psi\rangle |x\rangle = \sum_x \psi(x)|x\rangle.
+\end{equation}
+The expectation value of an operator $\hat O$ over this variational state then takes the form
+\begin{equation}
+    \langle \hat O \rangle = \frac{\langle\psi|\hat O|\psi\rangle}{\langle\psi|\psi\rangle}
+    = \frac{\sum_x |\psi(x)|^2 \, O_L(x)}{\sum_x |\psi(x)|^2},
+\end{equation}
+where we have defined the local estimator of the operator $\hat O$,
+\begin{equation}
+    O_L(x) = \frac{\langle x|\hat O|\psi\rangle}{\psi(x)}.
+\end{equation}
+The key point is that $P(x) = |\psi(x)|^2 / \sum_x |\psi(x)|^2$ is a normalised probability distribution. Therefore, the problem of computing the quantum average of $\hat O$ can be rephrased as computing the average of the random variable $O_L(x)$ over samples drawn from $P(x)$:
+\begin{equation}
+    \langle \hat O \rangle \approx \frac{1}{N}\sum_{n=1}^N O_L(x_n).
+\end{equation}
 
-Therefore, the problem of computing a quantum average of the operator O can be rephrased into the calculation of the average of the random variable OL(x) of Eq. (5.5) over the distribution probability P(x) given by Eq. (5.6).
+\subsubsection{Stochastic Reconfiguration Driver (SR)}
+\label{sec:SR}
 
-summary 〈O〉 ≈ 1  N  N ∑ n=1  OL(xn).
+A big part of the VMC setup is the VMC driver. We use NetKet's implementation of the \texttt{VMC\_SR} driver and this section will explain it.
 
+Generally, the driver defines a training loop which generates samples with Monte Carlo, evaluates the local energies $E_{loc}$, calculates the gradients, and updates the parameters $\theta$.
 
+The driver we use is called the Stochastic Reconfiguration Driver, with the SR preconditioner \cite{rende_simple_2024, becca_quantum_2017}. The role of SR is to precondition the gradient used in stochastic optimization, improving the convergence rate to the ground state of a Hamiltonian by multiplying the gradients with the inverse of the S matrix.
+
+The S matrix is actually the Quantum Geometric Tensor (QGT). While standard ML optimizers like Adam work in Euclidean parameter space and use the Euclidean norm, the QGT is equipped with a quantum-mechanical distance function, the Fubini-Study distance.
+To construct the SR update we will first need the gradient with respect to the variational parameters $\theta$.
+
+We are concerned with the problem of calculating the optimal update to $\theta$, and thus need to solve
+
+\begin{equation}
+    \delta \theta = S^{-1} g
+\end{equation}
+
+Since the S matrix is symmetric and positive semi-definite, we use Cholesky decomposition to solve for the inverse of the system. Here we need to introduce a parameter we will use later, called the diagonal shift. It helps with ill-conditioned S matrices -- the concrete parameter values used and how they were tuned are given in Section~\ref{impl:sys}.
 
 \newpage
 
 
 \subsection{Neural Network Ansatz for Fermions}
 \label{sec:nn_ansatz}
-
-- introduce general idea that VMC WF is NN ! 
 
 For fermions, efficiently representing antisymmetric states remains a major challenge. The standard approach is to expand $\Psi$ in terms of Slater determinants constructed from a single-particle basis set $\phi_1(r), ..., \phi_L(r)$.
 The problem with the Slater determinant is that it scales exponentially with the number of particles $N$. From the perspective of computational cost, it translates to $O(n^3)$ complexity, when solving the Slater determinant with LU decomposition. The main goal of this thesis is to verify an ansatz alternative to the Slater determinant, which could bring down the computational cost to $O(n^2)$, thus being a more efficient representation for fermionic wavefunctions. Such an ansatz was first proposed to use a symmetrical part and an antisymmetric part as arguments to a neural network \cite{fu_minimal_2025}.
@@ -237,54 +272,34 @@ Later in this work we use a regularised version of $\eta$ for stability at the n
 \eta = \prod_{1 \le j < i \le N} \frac{z_i - z_j}{\sqrt{|z_i - z_j|^2 + a^2}}
 \end{equation}
 
-\label{sec:SR}
-\subsubsection{Stochastic Reconfiguration Driver (SR)}
-
-
-A big part of the VMC setup is the VMC driver. We use NetKet's implementation of the \texttt{VMC\_SR} driver and this section will explain it.
-
-Generally, the driver defines a training loop which generates samples with Monte Carlo, evaluates the local energies $E_{loc}$, calculates the gradients, and updates the parameters $\theta$.
-
-The driver we use is called the Stochastic Reconfiguration Driver, with the SR preconditioner \cite{rende_simple_2024, becca_quantum_2017}. The role of SR is to precondition the gradient used in stochastic optimization, improving the convergence rate to the ground state of a Hamiltonian by multiplying the gradients with the inverse of the S matrix.
-
-The S matrix is actually the Quantum Geometric Tensor (QGT). While standard ML optimizers like Adam work in Euclidean parameter space and use the Euclidean norm, the QGT is equipped with a quantum-mechanical distance function, the Fubini-Study distance.
-To construct the SR update we will first need the gradient with respect to the variational parameters $\theta$.
-
-We are concerned with the problem of calculating the optimal update to $\theta$, and thus need to solve
-
-\begin{equation}
-    \delta \theta = S^{-1} g
-\end{equation}
-
-
-
-Since the S matrix is symmetric and positive semi-definite, we use Cholesky decomposition to solve for the inverse of the system. Here we need to introduce a parameter we will use later, called the diagonal shift. It helps with ill-conditioned S matrices.
-
-
-Explain its parameters
-
-
-The bottleneck of fitting the model on a GPU is the S matrix of the Stochastic Reconfiguration driver, which has dimensions $P \times P$, where $P$ is the number of parameters.
-The total number of parameters of the model can be calculated as:
-\begin{equation}
-    P = \dots
-\end{equation}
-
-Show connection to Jacobian matrix and how to calculate total weight
-
 \subsubsection{Deep Sets}
 \label{tab:deepsets}
 
-\subsubsection{Holomorphic Trap}
+For bosons, the wavefunction must be symmetric, rather than antisymmetric, under particle exchange. The natural architecture for this is Deep Sets \cite{zaheer_deep_2018}: each particle is passed through a shared per-particle encoder $\phi$, the resulting per-particle features are pooled (summed) into a single vector, and a decoder $\rho$ maps that pooled vector to the output,
+\begin{equation}
+    f(r_1, ..., r_N) = \rho\left(\sum_{i=1}^N \phi(r_i)\right).
+\end{equation}
+Since summation does not depend on the order of its terms, $f$ is automatically symmetric under any permutation of the particles, regardless of what $\phi$ and $\rho$ are. This is exactly the symmetric part $\xi$ used in the FermiSets construction above: $\xi(r_1,...,r_N) = \sum_i \phi(r_i)$, evaluated by the same shared encoder for both the $+\eta$ and $-\eta$ branches.
+
+\subsubsection{Slater-Determinant Baseline (SlaterNN)}
+\label{sec:slaternn}
+
+As a direct baseline for comparison, we also implement a standard Slater-determinant ansatz with neural-network orbitals, without any backflow: a single shared per-particle MLP produces $N$ orbitals $\phi_k(r_i)$ per particle, and the wavefunction is the determinant of the resulting $N \times N$ matrix,
+\begin{equation}
+    \psi(r_1,...,r_N) = \det\left[\phi_k(r_i)\right]_{i,k=1}^N,
+\end{equation}
+evaluated via \texttt{slogdet} for numerical stability. This is the $O(n^3)$ reference our FermiSets construction is compared against throughout Section~\ref{sec:results}: same envelope convention, same training pipeline -- only the antisymmetrization mechanism differs.
+
+\subsubsection{The Lazy-State Trap}
 \label{sec:lazy_trap}
 
-We will dicuss it more in results section \ref{sec:results}, but following must be mentioned now. The construction above has a shortcut built into it. For any smooth symmetric function $g(\xi)$, the state
+We will discuss this further in the Results section (\ref{sec:results}), but the following must be mentioned now. The construction above has a shortcut built into it. For any smooth symmetric function $g(\xi)$, the state
 
 \begin{equation}
     \psi(r_1,...,r_N) = \eta(r_1,...,r_N) \cdot g(\xi(r_1,...,r_N)) \cdot e^{-\sum_i r_i^2/2}
 \end{equation}
 
-is automatically antisymmetric, since $\eta$ already flips sign under every particle exchange. Thus network does not have to learn anything about the sign structure to satisfy the Pauli principle -- it can simply ignore the phase of $\eta$ and output a plain symmetric prefactor. This creates a bias towards the holomorphic (I honestly dont like name holomorphic here) trap which , it is a property of the ansatz itself and will cause troubles in actual implementation further. 
+is automatically antisymmetric, since $\eta$ already flips sign under every particle exchange. The network does not have to learn anything about the sign structure to satisfy the Pauli principle -- it can simply ignore the phase of $\eta$ and output a plain symmetric prefactor. This creates a bias towards the lazy-state trap, a property of the ansatz itself that will cause trouble in the actual implementation, discussed further below.
 
 The simplest such choice, $g \equiv \text{const}$, turns out to be an exact eigenstate of the non-interacting Hamiltonian. Writing particle positions as complex numbers $z_i = x_i + i y_i$, the signature encoder for $\dim=2$ is the complex Vandermonde determinant
 
@@ -298,7 +313,7 @@ which is exactly the Slater determinant built from the single-particle orbitals 
     E_{\text{lazy}} = \hbar\omega \sum_{k=0}^{N-1} (k+1) = \hbar\omega\, \frac{N(N+1)}{2}.
 \end{equation}
 
-Because $E_\text{lazy}$ is a true eigenvalue of $\hat H$, this state is an exact stationary point of the energy expectation value $\langle \psi | \hat H | \psi\rangle / \langle \psi|\psi\rangle$ \cite{becca_quantum_2017}: the energy gradient vanishes there identically, for any architecture, no matter what it is in principle capable of representing elsewhere. Gradient-based VMC has no local incentive to leave this state once it lands there. And since $g \equiv \text{const}$ is the easiest possible function to reach from a random initialization, it lands there almost every time. We call this the \textit{holomorphic trap}: not a failure of expressivity, but of trainability -- the network can represent the true ground state (we show this directly in Section~\ref{sec:results}), it just has no gradient telling it to go there.
+Because $E_\text{lazy}$ is a true eigenvalue of $\hat H$, this state is an exact stationary point of the energy expectation value $\langle \psi | \hat H | \psi\rangle / \langle \psi|\psi\rangle$ \cite{becca_quantum_2017}: the energy gradient vanishes there identically, for any architecture, no matter what it is in principle capable of representing elsewhere. Gradient-based VMC has no local incentive to leave this state once it lands there. And since $g \equiv \text{const}$ is the easiest possible function to reach from a random initialization, it lands there almost every time. We call this the \textit{lazy-state trap}: not a failure of expressivity, but of trainability -- the network can represent the true ground state (we show this directly in Section~\ref{sec:results}), it just has no gradient telling it to go there.
 
 Nothing in this argument is specific to the isotropic harmonic trap. The trapped family, more generally, consists of any state whose antisymmetric part is a product of pairwise coordinate differences -- what we call a \textit{sortable} sign structure, since it is exactly the sign structure a sorting of the particles would produce. The true 2D ground state instead has a sign structure built from a signed area (e.g.\ $\det\{1,x,y\}$ for $N=3$), which cannot be factored into pairwise terms. It is this genuinely two-dimensional antisymmetry, not the harmonic potential specifically, that the ansatz fails to reach unaided -- we confirm this by repeating the experiment on a potential with no rotational symmetry to lean on, in Section~\ref{sec:results}. That section also presents two structural ways to escape the trap without ever knowing the true ground state in advance.
 
