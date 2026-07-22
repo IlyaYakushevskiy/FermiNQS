@@ -496,38 +496,7 @@ and the Energy of this system would be :
 \end{equation}
 
 
-From our energy convergence graph, Figure~\ref{fig:n4energy}, we see that all configurations are heavily biased to the state with E = 10, which, as testing with different $N$ confirms, is always the exact Laughlin state.
-
-\subsection{Test of Optimizers}
-
-Since we had significant troubles with instabilities within the SR driver, we also tested the very standard, general Machine Learning approach of using the Adam Optimizer without Stochastic Reconfiguration. Since we don't have to compute the S matrix, that allowed us to fit a much bigger model on the same GPU.
-Instead of having $[16,32,64]$ hidden units we used $[16,32,1024]$, and additionally added one extra layer with weight dimension $[\texttt{hidden\_size} \times \texttt{hidden\_size}]$.
-
-We report that adding the extra layer (even when reduced in size) increased training time massively (30 times more per iteration), which we attribute to the way the code is parallelized in our setup.
-
-The setup with Adam and no SR did not have numerical instability troubles and found the Laughlin state with low errors of around 0.001 percent, but couldn't converge to the actual ground state.
-
-\paragraph{Solver for SR Optimizer}
-
-
-However, the inverse is often ill-defined. One reason is that Monte Carlo estimates of matrix elements are noisy. Noise accumulates to render the matrix singular by making small eigenvalues vanish. Therefore, quickly and efficiently obtaining many uncorrelated samples is crucial. \cite{medvidovic_variational_2023}
-
-\subsection{Hyperparameter Optimization}
-\paragraph{Effect of hidden layer size}
-
-\begin{figure}
-    \centering
-    \includegraphics[width=15cm,height=10cm,keepaspectratio]{plots/Mean_energy_convergence_for_N=4_and_varied_hidden_size.png}
-     \caption[Short Caption Figure 2]{\textit{My caption}}
-     \label{fig:n4energy}
-\end{figure}
-
-
-The best \texttt{diag\_shift} is 0.001, with the soft-SVD optimiser.
-\paragraph{Regularisation of antisymmetric part}
-
-In our formulation of the antisymmetric function, Equation~\ref{eq:eta}, which is regularised by the parameter $a$, we made a quick sweep to assess its effect:
-
+From our energy convergence graph, Figure~\ref{fig:n4energy} (Appendix~\ref{app:ablations}), we see that all configurations are heavily biased to the state with E = 10, regardless of hidden layer size, which, as testing with different $N$ confirms, is always the exact Laughlin state.
 
 \subsection{Performance of the best model}
 
@@ -598,6 +567,41 @@ We thus need to project our neural network onto definite sectors of $\hat{L}_z$.
 \subsection*{Outlook}
 \newpage
 \part{Appendix}
+\appendix
+
+\section{Optimizer and Hyperparameter Ablations}
+\label{app:ablations}
+
+These are tuning and engineering choices made along the way, not results the thesis's claims depend on; kept here for reproducibility.
+
+\subsection{Test of Optimizers}
+
+Since we had significant troubles with instabilities within the SR driver, we also tested the very standard, general Machine Learning approach of using the Adam Optimizer without Stochastic Reconfiguration. Since we don't have to compute the S matrix, that allowed us to fit a much bigger model on the same GPU.
+Instead of having $[16,32,64]$ hidden units we used $[16,32,1024]$, and additionally added one extra layer with weight dimension $[\texttt{hidden\_size} \times \texttt{hidden\_size}]$.
+
+We report that adding the extra layer (even when reduced in size) increased training time massively (30 times more per iteration), which we attribute to the way the code is parallelized in our setup.
+
+The setup with Adam and no SR did not have numerical instability troubles and found the Laughlin state with low errors of around 0.001 percent, but couldn't converge to the actual ground state.
+
+\paragraph{Solver for SR Optimizer}
+
+However, the inverse is often ill-defined. One reason is that Monte Carlo estimates of matrix elements are noisy. Noise accumulates to render the matrix singular by making small eigenvalues vanish. Therefore, quickly and efficiently obtaining many uncorrelated samples is crucial. \cite{medvidovic_variational_2023}
+
+\subsection{Hyperparameter Optimization}
+\paragraph{Effect of hidden layer size}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=15cm,height=10cm,keepaspectratio]{plots/Mean_energy_convergence_for_N=4_and_varied_hidden_size.png}
+    \caption{Mean energy convergence for the $N=4$ QHO benchmark, varying hidden layer size. All configurations converge to the same $E=10$ Laughlin/trap state regardless of capacity.}
+    \label{fig:n4energy}
+\end{figure}
+
+The best \texttt{diag\_shift} is 0.001, with the soft-SVD optimiser.
+\paragraph{Regularisation of antisymmetric part}
+
+In our formulation of the antisymmetric function, Equation~\ref{eq:eta}, which is regularised by the parameter $a$, we made a quick sweep to assess its effect:
+
 \bibliographystyle{ieeetr}
 \bibliography{zotero_references}
 %\printbibliography
