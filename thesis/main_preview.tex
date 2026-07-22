@@ -110,6 +110,7 @@ A recently proposed alternative approach implements fermionic antisymmetry using
 \thispagestyle{plain}
 \newpage
 \section{Introduction}
+\label{sec:intro}
 
 In theoretical condensed matter physics, in order to describe the properties of a material, it is usually sufficient to describe the ground state of the many-body system. However, this has always been a hard task to solve, mainly accomplished by various variational methods. It becomes particularly hard to solve quantum many-body systems which include non-trivial, strongly correlated interactions.
 Recently, relatively new approaches to model the wavefunction have emerged, such as Neural Quantum States (NQS)\cite{carleo_solving_2017}. Using it as the ansatz within Variational Monte Carlo (VMC) techniques, together with a finite basis set, has significantly improved the accuracy of the method.
@@ -383,7 +384,7 @@ Since $|\psi(x)|^2$ is exactly permutation-symmetric for any antisymmetric $\psi
 The Trainer wraps NetKet's VMC driver and everything needed to run it to convergence:
 \begin{itemize}
     \item \texttt{trainer.lr} is the base learning rate, decayed exponentially with rate \texttt{trainer.lr\_decay\_rate} every \texttt{trainer.lr\_decay\_steps} iterations.
-    \item \texttt{trainer.optimizer} selects between \texttt{sgd}, \texttt{momentum} (with \texttt{trainer.momentum\_beta}), and plain \texttt{adam} (no SR, used only for the optimizer comparison in Section~\ref{sec:results}).
+    \item \texttt{trainer.optimizer} selects between \texttt{sgd}, \texttt{momentum} (with \texttt{trainer.momentum\_beta}), and plain \texttt{adam}, we compare those optmizers later in apendix \ref{sec:solver}.
     \item \texttt{trainer.vmc\_iters} is the number of training iterations; \texttt{trainer.n\_samples} and \texttt{trainer.n\_discard\_per\_chain} set the number of Monte Carlo samples used per gradient step and the burn-in discarded from the start of each chain.
     \item \texttt{trainer.diag\_shift} is the diagonal shift $\lambda$ introduced in Section~\ref{sec:SR}; \texttt{trainer.pinv\_rtol}/\texttt{pinv\_atol} control the tolerance of the Cholesky-based solver used to invert the (shifted) S matrix.
     \item \texttt{trainer.chunk\_size} splits the batch of samples into smaller chunks for the forward/backward pass, trading speed for GPU memory, necessary since the S matrix scales as (number of samples)$^2$ under the kernel trick (\texttt{use\_ntk=True}) used throughout.
@@ -402,7 +403,20 @@ Two further optional training-time penalties (\texttt{trainer.holo\_penalty}/\te
 
 \subsection{Neural Network Ansatz}
 
-As introduced in Section~\ref{sec:nn_ansatz}, the FermiSets ansatz is built from a symmetric Deep Sets embedding $\xi$ and the antisymmetric signature encoder $\eta$. The architecture is shown in Figure~\ref{fig:fermisets_architecture}: a shared per-particle encoder $\phi$, a symmetric sum-pool and decoder $\rho$ producing $\xi$, and a head $\Psi$ combining $\xi$ with $\mathrm{Re}(\eta)$ and $\mathrm{Im}(\eta)$ into the final log-amplitude, evaluated at both $+\eta$ and $-\eta$ and recombined to enforce the sign flip exactly.
+As introduced in Section~\ref{sec:nn_ansatz}, the FermiSets ansatz is built from a symmetric Deep Sets embedding $\xi$ and the antisymmetric signature encoder $\eta$. Figure~\ref{fig:fermisets_architecture} shows the resulting computational graph; concretely, a forward pass proceeds as follows.
+
+\begin{enumerate}
+    \item \textbf{Input.} Particle coordinates arrive as a batch of shape $(\text{batch}, N, \texttt{dim})$; for the $\texttt{dim}=2$ systems this thesis focuses on, each particle contributes a pair $(x_i, y_i)$, packed into $z_i = x_i + iy_i$.
+    \item \textbf{Signature encoder.} $\eta(R)$, the (regularised) complex Vandermonde determinant of Equation~\ref{eq:eta}, is computed directly from the raw coordinates. This is the only antisymmetric ingredient in the whole network; everything else below is built to be exchange-symmetric.
+    \item \textbf{Deep Sets embedding.} In parallel, each particle's coordinates pass through the same shared encoder $\phi$ (two dense layers), are summed over particles (the permutation-symmetric pooling step), and the pooled vector is passed through a decoder $\rho$ to give $\xi(R)$, a fixed-size, permutation-invariant summary of the whole configuration, regardless of $N$.
+    \item \textbf{Feature concatenation and the $\Psi$-net.} $\xi(R)$ is concatenated with $\mathrm{Re}(\eta)$ and $\mathrm{Im}(\eta)$ and fed into a single, generously wide layer (\texttt{hidden\_units} with a fixed width multiplier, rather than several narrower stacked layers). This is a deliberate design choice, not a default: the Universal Approximation Theorem (Section~\ref{sec:intro}) already guarantees that one sufficiently wide layer with a non-linearity can approximate the function we need, and empirically, adding an extra stacked layer here made training roughly $30\times$ slower per iteration for no accuracy benefit (Appendix~\ref{app:ablations}). Within this VMC setup, shallow-and-wide outperforms deep in practice, and the theorem gives us license to prefer it.
+    \item \textbf{Manual antisymmetrization.} The $\Psi$-net above is evaluated \emph{twice} with shared weights: once at $+\eta$ and once at $-\eta$, giving two log-amplitudes $\Psi_0(\xi, \eta)$ and $\Psi_0(\xi, -\eta)$. These are combined explicitly as
+    \begin{equation}
+        \Psi(\xi,\eta) = \tfrac{1}{2}\big[\Psi_0(\xi,\eta) - \Psi_0(\xi,-\eta)\big]
+    \end{equation}
+    (computed in log-space via a signed log-sum-exp for numerical stability, but this equation is exactly what it computes). This is the step that actually enforces the fermionic sign flip: nothing upstream of it is antisymmetric under particle exchange on its own, only this explicit $\Psi_0(+\eta) - \Psi_0(-\eta)$ subtraction is.
+    \item \textbf{Output.} The result is returned as $\log \psi$, split into a log-modulus and a phase channel, never as $\psi$ itself. NetKet's variational-state machinery expects log-amplitudes; $|\psi|$ can span many orders of magnitude across a batch, and exponentiating anywhere inside the network would overflow long before that.
+\end{enumerate}
 
 The relevant parameters:
 \begin{itemize}
@@ -420,8 +434,6 @@ Two accepted config keys, \texttt{pool\_fct\_name} and \texttt{L}, are currently
 The regularisation constant $a$ in the regularised signature encoder (Equation~\ref{eq:eta}) is currently hardcoded to $1.0$ inside \texttt{eta\_antisymmetric} rather than exposed as a config key.
 
 Note that \texttt{sampler.n\_chains}, \texttt{trainer.n\_samples}, and \texttt{trainer.chunk\_size} do not affect the ansatz's own input size: they control how many samples are evaluated in parallel (the batch dimension), not the feature dimension. The ansatz's actual input, per sample, is the flattened vector of all particle coordinates, of size $N \times \texttt{dim}$.
-
-Another practical detail: NetKet expects the ansatz to return $\log \psi$, never $\psi$ itself: exponentiating anywhere inside the network would immediately overflow for even moderately sized systems.
 
 \begin{figure}[H]
     \centering
@@ -446,6 +458,7 @@ Two further tools are referenced in Section~\ref{sec:results}:
 \section{Results $\&$ Discussion}
 \label{sec:results}
 
+Here we gonna do a lot of pistures, generate wavefunctions from checkpoints! Analyse whole backlog from cluster runs. 
 For the system discussed in Section~\ref{impl:sys} we are going to do an ablation study, according to \cite{godbole_deep_2023}.
 
 
@@ -587,6 +600,7 @@ The setup with Adam and no SR did not have numerical instability troubles and fo
 
 However, the inverse is often ill-defined. One reason is that Monte Carlo estimates of matrix elements are noisy. Noise accumulates to render the matrix singular by making small eigenvalues vanish. Therefore, quickly and efficiently obtaining many uncorrelated samples is crucial. \cite{medvidovic_variational_2023}
 
+\label{sec:solver}
 \subsection{Hyperparameter Optimization}
 \paragraph{Effect of hidden layer size}
 
