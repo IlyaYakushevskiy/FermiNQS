@@ -169,7 +169,7 @@ is exponentially large in the number of particles. Therefore, representing a qua
 many-body system just by giving the coefficients of the wave function in some local basis is an
 inefficient representation. The Hilbert space of a quantum many-body system is a really big place
 with an incredibly large number of quantum states. Not all quantum states in the Hilbert space of a many-body system are equal: some are more relevant than others.
-In particular, one can prove that low-energy eigenstates of gapped Hamiltonians with local interactions obey the so-called area-law for the entanglement entropy. This means that the entanglement entropy of a region of space tends to scale, for large enough regions, as the size of the boundary of the region and not as the volume. And this is a very remarkable property, because a quantum state picked at random from a many-body Hilbert space will most likely have an entanglement entropy between subregions that will scale like the volume, and not like the area. In other words, low-energy states of realistic Hamiltonians are not just “any” state in the Hilbert space: they are heavily constrained by locality so that they must obey the entanglement area-law.
+In particular, one can prove that low-energy eigenstates of gapped Hamiltonians with local interactions obey the so-called area-law for the entanglement entropy. This means that the entanglement entropy of a region of space tends to scale, for large enough regions, as the size of the boundary of the region and not as the volume. And this is a remarkable property, because a quantum state picked at random from a many-body Hilbert space will most likely have an entanglement entropy between subregions that will scale like the volume, and not like the area. In other words, low-energy states of realistic Hamiltonians are not just “any” state in the Hilbert space: they are heavily constrained by locality so that they must obey the entanglement area-law.
 
 \begin{figure}[h]
     \centering
@@ -182,10 +182,9 @@ In particular, one can prove that low-energy eigenstates of gapped Hamiltonians 
 
 
 
-Literature on the topic has well documented the Fermionic Sign Problem, which appears in VMC setups as a consequence of the Pauli principle and constitutes a big computational challenge for VMC setups. However, in our case this is not a direct concern: we sample directly from $|\psi(x)|^2$ using an explicit variational ansatz, so the sign of $\psi$ is built into the ansatz itself, rather than inferred by the sampler against a bosonic reference (as in fixed-node/projector QMC, where the sign problem actually bites). Hence we completely focus on the cost scaling of the antisymmetric part, not on sampling noise from sign cancellation.
+Literature on the topic has well documented the Fermionic Sign Problem, which appears in VMC setups as a consequence of the Pauli principle and constitutes a big computational challenge for VMC setups. However, in our case this is not a direct concern: we sample directly from $|\psi(x)|^2$ using an explicit variational ansatz, so the sign of $\psi$ is built into the ansatz itself, rather than inferred by the sampler against a bosonic reference. Hence we completely focus on the cost scaling of the antisymmetric part, not on sampling noise from sign cancellation.
 
-However in our case we work with continuous space, meaning that arguments to our Wavefunction are directly coordinates of the particle.
- - other implications of continuous space 
+However, in our case we work with continuous space, meaning that arguments to our wavefunction are directly the coordinates of the particles, in first quantization, rather than occupation numbers on a fixed lattice or discrete basis set -- there is no basis-set truncation error to worry about, the network parametrizes the wavefunction directly, which is exactly the Universal Approximation Theorem argument from the Introduction. It also means sampling must proceed via continuous-space Metropolis moves (Section~\ref{impl:sys}), rather than the discrete-occupation updates used in most lattice NQS work, and that the natural symmetries to exploit are continuous ones (e.g.\ rotations), not discrete lattice symmetries -- a point we return to in Section~\ref{sec:results}.
 \newpage
 
 \subsection{Variational Monte Carlo}
@@ -193,7 +192,8 @@ However in our case we work with continuous space, meaning that arguments to our
 Since we work in continuous, high dimensional, infite space we can not perform integration to evaluate our wavefunctions. 
 Main approach and framework which allows us to postulate wavefunction  $\Psi$, estimate it's local energies, their variance etc by statistical and computational methods is Variational Monte Carlo (VMC).
 
-The base of VMC is the quantum-mechanical variational principle, one of the big advantages of which is that the energy of the system is bounded from below by the ground state energy. By optimizing \ref{sec:SR} our variational state with respect to parameters $\theta$ in order to decrease the energy, we hope to capture an approximation of the ground state, hence capture the correct ground-state behavior
+The base of VMC is the quantum-mechanical variational principle, one of the big advantages of which is that the energy of the system is bounded from below by the ground state energy. By optimizing \ref{sec:SR} our variational state with respect to parameters $\theta$ in order to decrease the energy, we hope to capture an approximation of the ground state, hence capture the correct ground-state behavior.
+
 
 The known limitation of the method is it's bias to Ansatz, the first assumption of the wavefunction we start optimisation with.
 Hence over last 10 years Neural Network Ansatz \ref{sec:nn_ansatz} became increasingly more popular as it is almost always more efficient then starting from the random state.  
@@ -320,6 +320,8 @@ Nothing in this argument is specific to the isotropic harmonic trap. The trapped
 
 
 \section{Implementation and Experimental Setup}
+
+In this section we going to state the particular system we test the Ansatz with, and all the computational parameters involved. 
 
 System (Hamiltonian) $\rightarrow$ Sampler ( Metropolis Algo ) $\rightarrow$ Ansatz (NQS) $\rightarrow$ VMC (Eigen energies)
 
