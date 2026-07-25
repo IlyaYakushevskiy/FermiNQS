@@ -1,0 +1,41 @@
+# @package _global_
+# MARATHON, Arm B (capacity axis) — N=6 QHO, K=2 projection, WIDE net hidden=128.
+# Same cheap K=2 sieve as Arm A (qho_fermisets_2d_6N_lz_k2.yaml); the only change is 2x
+# hidden width, to isolate whether the N=6 residual is a capacity limit rather than an
+# optimisation-budget limit. n_samples reduced to 2048 (user-sanctioned) to stay inside
+# the 8 GB GPU and keep minSR stable at the larger width; diag_shift raised to 0.1 for
+# extra SR conditioning headroom (the N=4 width table showed hidden=128 collapses under a
+# too-small shift). Run in resumable 300-iter batches by tools/marathon_n6_k2.py.
+seed: 42
+use_wnb: False
+
+system:
+  N: 6
+  dim: 2
+  potential: qho_no_inter
+
+ansatz:
+  model: fermi_sets
+  hidden_units: 128
+  out_units: 10
+  pretrained_path: null
+  lz_proj_K: 2
+
+trainer:
+  vmc_iters: 300
+  lr: 0.01
+  n_samples: 2048
+  diag_shift: 0.1
+  validation: true
+  optimizer: momentum
+  momentum_beta: 0.9
+  chunk_size: 512
+  lr_decay_rate: 0.95
+  lr_decay_steps: 100
+  pinv_rtol: 1e-12
+  pinv_atol: 1e-14
+
+sampler:
+  sigma: 0.1
+  n_chains: 512
+  sweep_size: 32

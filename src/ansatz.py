@@ -15,7 +15,7 @@ class FermiSets(nnx.Module):
      (Fermions = Bosons + One).” doi:10.48550/arXiv.2510.11431.
     """
      
-    def __init__(self , dim: int , N: int, rngs: nnx.Rngs, log : logging.Logger,  pool_fct_name : str = None, L: float = None , hidden_units: int = 8, out_units: int = 10, lz_proj_K: int = 0, pair_hidden: int = 0 ):
+    def __init__(self , dim: int , N: int, rngs: nnx.Rngs, log : logging.Logger,  pool_fct_name : str = None, L: float = None , hidden_units: int = 8, out_units: int = 10, lz_proj_K: int = 0, pair_hidden: int = 0, backflow_hidden: int = 0 ):
 
         self.dim = dim
         self.N = N
@@ -23,6 +23,19 @@ class FermiSets(nnx.Module):
         self.hidden_units = hidden_units
         self.log = log
         self.out_units = out_units
+        # Signature backflow (RESEARCH_LOG 2026-07-24): the plain ansatz outsources ALL
+        # antisymmetry to the FIXED Vandermonde eta = prod(z_i - z_j), whose nodal surface
+        # is holomorphic and immovable — the representability wall at N=6 (07-23). Backflow
+        # replaces the raw coords in eta with z_tilde_i = z_i + Delta_i, where Delta_i is a
+        # permutation-EQUIVARIANT DeepSets map (per-particle feature + symmetric pool). Two
+        # consequences: (i) antisymmetry survives EXACTLY (equivariance -> eta(z_tilde) still
+        # sign-flips under swaps; structural, no regularizer), (ii) Delta may depend on the
+        # conjugates z-bar (real input features), so eta(z_tilde) carries anti-holomorphic
+        # nodal content the fixed Vandermonde forbids. Output layer zero-init: z_tilde = z at
+        # init, so eta reduces to the baseline Vandermonde and gradients grow the deformation.
+        # 0 disables (old arch). Acts on the SIGNATURE ONLY; the symmetric xi embedding still
+        # sees raw coords, isolating "does a deformable node help" from everything else.
+        self.backflow_hidden = backflow_hidden
         # Pair-feature stream (RESEARCH_LOG 2026-07-15): Deep Sets over unordered pairs,
         # exchange-even bounded features, sum-pooled into the symmetric embedding. Gives the
         # Psi head linear access to sum_pairs [log(1+r^2) - log(r^2+eps)] = -log T (T = |eta|^2),
@@ -59,6 +72,17 @@ class FermiSets(nnx.Module):
             self.pair_dense1 = nnx.Linear(in_features=n_pair_feats, out_features=pair_hidden, rngs=rngs)
             self.pair_dense2 = nnx.Linear(in_features=pair_hidden, out_features=pair_hidden, rngs=rngs)
 
+        ### SIGNATURE BACKFLOW stream (optional): equivariant coordinate deformation for eta
+        if backflow_hidden:
+            self.bf_dense1 = nnx.Linear(in_features=dim, out_features=backflow_hidden, rngs=rngs)
+            # input is [per-particle feat, symmetric pool] -> 2*backflow_hidden
+            self.bf_dense2 = nnx.Linear(in_features=2 * backflow_hidden, out_features=backflow_hidden, rngs=rngs)
+            # zero-init output => z_tilde = z at init (eta == baseline Vandermonde), grads still flow
+            self.bf_out = nnx.Linear(
+                in_features=backflow_hidden, out_features=dim, rngs=rngs,
+                kernel_init=jax.nn.initializers.zeros, bias_init=jax.nn.initializers.zeros,
+            )
+
         ### Psi layer, combining symmetric and antisymmetric features
         psi_in = hidden_units + pair_hidden + 2  # +2 for Re{} and Im{} of eta
         self.Psi_dense1 = nnx.Linear(in_features= psi_in , out_features=psi_in*2, rngs=rngs)
@@ -68,9 +92,23 @@ class FermiSets(nnx.Module):
         self.Psi_dense2 = nnx.Linear(in_features=psi_in*2 , out_features=out_units, rngs=rngs)
 
 
+    def _backflow_coords(self, x_reshaped):
+        # equivariant DeepSets backflow: Delta_i = MLP(h_i, mean_j h_j), h_i = gelu(W x_i).
+        # Per-particle h_i + symmetric pool -> Delta permutes with the particles, so the
+        # coincidence set of z_tilde stays permutation-symmetric and eta(z_tilde) stays
+        # exactly antisymmetric. Real-valued features make Delta depend on z-bar.
+        h = nnx.gelu(self.bf_dense1(x_reshaped))                 # (batch, N, H)
+        g = jnp.mean(h, axis=1, keepdims=True)                   # (batch, 1, H) invariant pool
+        g = jnp.broadcast_to(g, h.shape)
+        d = nnx.gelu(self.bf_dense2(jnp.concatenate([h, g], axis=-1)))
+        d = self.bf_out(d)                                       # (batch, N, dim), 0 at init
+        return x_reshaped + d
+
     def eta_antisymmetric(self, x):
             x_reshaped = x.reshape(-1, self.N, self.dim)
             #x is (batch, N, dim)
+            if self.backflow_hidden:
+                x_reshaped = self._backflow_coords(x_reshaped)
             if self.dim == 1:
                 # regularized real Vandermonde, same construction as dim==2 below.
                 # NOTE: previously this returned log(prod diff) and __call__ negated the

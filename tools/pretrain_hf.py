@@ -91,6 +91,8 @@ def main():
     ap.add_argument("--hidden", type=int, default=64)
     ap.add_argument("--out", type=int, default=10)
     ap.add_argument("--lr", type=float, default=2e-3)
+    ap.add_argument("--pair-hidden", type=int, default=0)
+    ap.add_argument("--backflow-hidden", type=int, default=0)
     args = ap.parse_args()
     N = args.N
 
@@ -98,7 +100,9 @@ def main():
     print(f"HF target: N={N} spinless fermions, occupied orbitals (n_x,n_y) = {orbitals}")
 
     model = FermiSets(dim=DIM, N=N, rngs=nnx.Rngs(42), log=logging.getLogger(),
-                      hidden_units=args.hidden, out_units=args.out)
+                      hidden_units=args.hidden, out_units=args.out,
+                      pair_hidden=args.pair_hidden,
+                      backflow_hidden=args.backflow_hidden)
     graphdef, state = nnx.split(model)
 
     tx = optax.adam(optax.cosine_decay_schedule(args.lr, args.steps, alpha=0.1))
@@ -145,7 +149,9 @@ def main():
     out_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                            "outputs", "pretrained")
     os.makedirs(out_dir, exist_ok=True)
-    out_path = os.path.join(out_dir, f"hf_N{N}_2d_h{args.hidden}.mpack")
+    suffix = f"_p{args.pair_hidden}" if args.pair_hidden else ""
+    suffix += f"_bf{args.backflow_hidden}" if args.backflow_hidden else ""
+    out_path = os.path.join(out_dir, f"hf_N{N}_2d_h{args.hidden}{suffix}.mpack")
     with open(out_path, "wb") as f:
         f.write(flax.serialization.to_bytes(vstate.variables))
     print(f"saved: {out_path}")

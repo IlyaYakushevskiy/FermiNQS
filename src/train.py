@@ -155,7 +155,7 @@ class Trainer:
         ckpt_dir = os.path.join(working_dir, "checkpoints")
         os.makedirs(ckpt_dir, exist_ok=True)
 
-        if step % 50 == 0: 
+        if step % 50 == 0:
             ckpt_filename = os.path.join(ckpt_dir, f"step_{step}.mpack")
 
             vstate = driver.state
@@ -184,11 +184,11 @@ class Trainer:
             if acc is not None:
                 self.log.info(f"training sampler acceptance: {float(acc):.3f}")
             #plotting
-            # plot_path = os.path.join(working_dir, "plots") # no / needed 
-            # os.makedirs(plot_path, exist_ok=True)
-            # plot_name = f"validation_step_{step}"
-            # plot_title = f" {self.run_name}, validation of step {step} with validation energy {val_energy_stats}"
-            # plot_wf( plot_name = plot_name, plot_path= plot_path, plot_title= plot_title, system = self.system, vstate = vstate)
+            #plot_path = os.path.join(working_dir, "plots") # no / needed
+            #os.makedirs(plot_path, exist_ok=True)
+            #plot_name = f"step_{step}"
+            #plot_title = f" {self.run_name}, step {step}, validation energy {val_energy_stats}"
+            #plot_wf( plot_name = plot_name, plot_path= plot_path, plot_title= plot_title, system = self.system, vstate = vstate)
 
             
             

@@ -1290,3 +1290,275 @@ combination of this entry and the two above: projection is a real, provable stru
 fix for the *wrong-sector* pathology (validated cleanly at N=3), but does not by itself
 make the true ground state's non-factorizable sign structure easy to reach as N grows —
 neither in the non-interacting nor the interacting case tested.
+
+---
+
+## 2026-07-23 — Supervised expressivity test: the N=6 wall is REPRESENTABILITY, not budget (fixed-eta ceiling)
+
+The N=6 negative results above (K=3/4/6 all plateau ~16-17, the 31%-GS partial
+superposition) left one hole open, flagged in QUEUE.md: the projected runs were killed
+while still slowly descending, so "stuck" was never proven to be a wall rather than an
+iteration-budget shortfall. Settled it directly, and cheaply, by SUPERVISED fitting
+instead of a longer VMC chase: can a FermiSets network even be *fit* to the exact N=6 GS
+when handed the answer? If not, no VMC budget can reach it.
+
+Tool: `tools/pretrain_hf.py` (Adam, 25000 steps, batch 8192), masked amplitude+phase loss
+against the exact aufbau Slater determinant (which IS the exact non-interacting GS). Loss
+= amp (masked variance of the real-log residual) + phase (mean of `1 - cos(Im residual)`;
+0 = sign structure matched, ~1 = uncorrelated).
+
+| run            | final loss | amp  | phase | VMC E of the fit | exact GS |
+|----------------|-----------:|-----:|------:|-----------------:|---------:|
+| N=3, hidden=64 |       ~0.5 | 0.35 |  0.20 |             5.73 |      5.0 |
+| N=6, hidden=64 |       2.03 | 1.04 |  0.99 |            24.41 |     14.0 |
+| N=6, hidden=128|       1.95 | 0.96 |  0.99 |            39.69 |     14.0 |
+
+Reading:
+- **N=3 CONTROL fits** (the metric works): phase loss falls to ~0.2, amp to ~0.35, and
+  the fitted state's VMC energy lands near the GS (5.7 vs 5.0). So the tool CAN drive a
+  FermiSets network onto a true GS when the ansatz can represent it.
+- **N=6 cannot be fit at any width**: the phase loss is PINNED at ~0.99 from step 0
+  through 25000 for BOTH hidden=64 and hidden=128 — the sign structure stays essentially
+  uncorrelated with the true GS no matter how much decoder capacity is added. The fitted
+  states sit at E = 24-40, i.e. worse than the holomorphic trap (21), never mind the GS.
+  Doubling width made it slightly WORSE, not better.
+
+**Interpretation — the mechanism, shown directly.** The true N=6 GS fills shells 0,1,2;
+shell 2 is the three orbitals (n_x,n_y) in {(0,2),(1,1),(2,0)}, whose nodal structure is
+NOT holomorphic. FermiSets outsources all antisymmetry to the FIXED complex-Vandermonde
+signature encoder eta = prod (z_i - z_j), a holomorphic object with a fixed holomorphic
+nodal prior; the only trainable freedom is the symmetric (nodeless) decoder, which cannot
+move nodes. So the network literally cannot place the non-holomorphic nodes the N=6 GS
+requires — and adding decoder width does nothing, because width does not buy new nodal
+degrees of freedom. This is the Vandermonde-nodal-prior-vs-Slater argument (already in the
+thesis, previously inferred from VMC plateaus) shown NOW by direct supervised fitting,
+with a passing N=3 control to prove it is not a metric artifact.
+
+**Consequence for the thesis.** This closes the QUEUE.md hole: the N=6 wall is a genuine
+REPRESENTABILITY ceiling of the fixed-eta ansatz, not an optimisation-budget shortfall and
+not a decoder-capacity shortfall. It also explains cleanly why L_z projection (which fixes
+only *which sector* the search lives in) cannot rescue N=6: even the best-case in-sector
+target is unreachable by construction. Pairs with, and mechanistically grounds, the
+"projection solves which-sector, not how-hard-the-sign-structure-is" conclusion above.
+
+Artifacts: `logs/pretrain_n6_h64.log`, `logs/pretrain_n6_h128.log`,
+`logs/pretrain_n3_h64_control.log`; checkpoints in `outputs/pretrained/hf_N{3,6}_2d_h*.mpack`.
+
+**Follow-up running (2026-07-23, 30h GPU window):** the K=2 marathon
+(`tools/marathon_n6_k2.py`, Arm A hidden=64 / Arm B hidden=128, cheapest projection that
+removes the trap, margin=1) is the VMC-side companion to this supervised ceiling — it
+measures where from-scratch VMC actually settles at the thesis-aligned cheap K, and is
+expected to confirm the same wall from the optimisation side. Self-healing via
+`tools/marathon_watchdog.py`. Results to be appended when the window closes.
+
+---
+
+## 2026-07-24 — K=2 marathon window closed; GPU repurposed (big-LR deflation + pair-feature expressivity test)
+
+### Marathon status at window close (partial — Arm B died mid-run, not resumed)
+
+- **Arm A (hidden=64, K=2)**: completed its 13.5 h budget cleanly — 25 batches, 6275
+  cumulative iters, final E = 19.373, bouncing in an 18.7–19.4 band over the last five
+  batches. Consistent with (in fact slightly WORSE than) the K=3/4/6 plateaus at 16.5–17.5,
+  reinforcing the ceiling picture; K=2 buys nothing.
+- **Arm B (hidden=128, K=2)**: batches 1–5 done, 18.94 → 18.46 → 18.58 → 18.04 → 17.03
+  (1255 iters) — width visibly SPEEDS UP optimisation (reaches 17.0 in 1255 iters where
+  Arm A needed ~6000), even though the supervised test above proves it cannot lift the
+  representability ceiling. Batch 6 died silently ~12:25 (watchdog also dead). NOT
+  resumed — user decision: GPU goes to the two experiments below instead. Checkpoint
+  for any future resume: `outputs/marathon/armB_h128/batch5/checkpoints/step_250.mpack`.
+
+### Experiment 1 (running): deflation penalty at large SR learning rate ("QGT loves big lr")
+
+User hypothesis: minSR preconditions the step by the quantum geometric tensor, so raw-lr
+intuition from SGD does not apply and lr = 0.1–0.2 may be usable from scratch. The
+historical "blow-ups at lr ≥ 0.08" were pre-guard sgd runs; trust-region solver +
+BlowupGuard are active now. Design: canonical N=4 deflation config
+(`qho_fermisets_2d_4N_deflate`), seed 42, 1500 iters, canonical GPU resources — lr is the
+ONLY variable vs the 8.361 ± 0.029 baseline at lr=0.01. Two chained arms in tmux session
+`deflate_biglr`: lr=0.1 (`outputs/n4_deflate_lr01_console.log`) then lr=0.2
+(`.../n4_deflate_lr02_console.log`). Known imbalance, deliberate: `deflation_penalty_lr`
+stays at its calibrated 0.01, so the energy-driven pull toward the trap is 10–20x stronger
+RELATIVE to the penalty than in the baseline — watch `Deflation_overlap` in the first
+~150 steps; if it races to ~1 while E pins near 10, the penalty lost the early fight and
+the follow-up is scaling the penalty lr with the SR lr. Early health (lr=0.1, step ~50):
+E 12.26 → 11.38, σ²=3.0, no NaN, no rollbacks. Results appended below when done.
+
+### Experiment 2 (queued behind Exp. 1, tmux `pair_fit`): supervised N=6 fit WITH pair features
+
+Closes the open flank of the 2026-07-23 representability-ceiling result: that test used
+the PLAIN architecture (`pair_hidden=0`), but the pair stream (2026-07-15) was designed
+precisely to express the singular symmetric prefactor (log(r²+ε) makes −log T a linear
+readout) — and supervised fitting is the one setting where it gets a fair test, free of
+the VMC basin dynamics that killed it as a trap escape. Plumbing: `--pair-hidden` flag
+added to `tools/pretrain_hf.py` (output suffix `_p<n>`, e.g. `hf_N6_2d_h64_p32.mpack`);
+smoke-tested (N=6, pair_hidden=32: finite forward, antisymmetry exact to 1e-12). Runs,
+identical to the 07-23 baselines except the knob: N=6 h=64 p=32
+(`logs/pretrain_n6_h64_p32.log`) + N=3 control (`logs/pretrain_n3_h64_p32_control.log`),
+25000 steps, batch 8192. Decision rule: phase loss still pinned ~0.99 → the ceiling
+claim HARDENS ("not even with the designed fix" — state it in the thesis); phase loss
+falls materially (N=3 control must fit, else metric artifact) → the ceiling is a
+feature-set artifact, the pair stream is representationally vindicated, and the crown
+follow-up is the full stack (pair + L_z projection + HF pretrain) at N=6 in VMC.
+Results appended below when done.
+
+### Deflation big-lr result (Exp. 1) — NEGATIVE, precise mechanism: anneal clock mismatched to fast descent
+
+lr=0.1 arm ran 640 iters (killed there; lr=0.2 skipped as redundant, see below). It did
+NOT escape — it locked into the trap: E=10.0, `Deflation_overlap`=1.01 from step ~500 on.
+Trajectory tells the mechanism exactly. mu is annealed geometrically (`decay=0.995`, so
+mu≈mu0·0.995^t): mu=0.78 at step 50, 0.37 at 200, 0.10 at 450, 0.06 at 550. At lr=0.1 the
+SR step drives the energy to the trap basin FAST (E≈10.4 by step ~200, vs lr=0.01 which is
+still ~11 there). The penalty DOES still fire — at step 450 it violently ejected the state
+(overlap 0.67→0.094, E 10.5→13.2 in a few steps) — but by then mu had annealed to ~0.10,
+too weak to hold, so the bare energy gradient snapped it straight back (overlap 0.97 by
+step 500, then 1.0 locked). Contrast the lr=0.01 baseline (8.36): there the descent is slow
+enough that the penalty, while mu is still O(1) (steps <~300), pushes the state off the
+subspace BEFORE mu decays away.
+**Reading: the escape depends on the penalty OUTLASTING the descent; a fixed iteration-
+indexed anneal tuned for slow (lr=0.01) descent decays on the wrong clock for fast (lr=0.1)
+descent.** The QGT-big-lr idea makes energy descent faster, which HURTS this particular
+escape rather than helping it. lr=0.2 skipped: the mechanism is monotonic in lr (faster
+descent → anneal even more mistimed → trap even more certain), so a full 1500-iter lr=0.2
+run would only reconfirm lock-in while blocking the pair/backflow assays. The ONE follow-up
+that would actually test whether big-lr can escape is to decouple the anneal from the
+descent — fix mu (decay=1.0) or tie it to overlap/energy progress rather than iteration
+count — but deflation is future-work per the 07-17 pivot, so this is noted, not chased.
+Interesting positive sub-observation kept for the future-work paragraph: even at lr=0.1 the
+penalty can eject the state hard (overlap→0.09) — the escape force is strong enough; only
+the schedule failed.
+
+---
+
+## 2026-07-24 — Signature backflow: design + expressivity-assay frame (Idea #1 vs the N=6 wall)
+
+**Motivation.** The N=6 wall (07-23) is that the FIXED complex-Vandermonde signature
+eta=prod(z_i−z_j) has an immovable holomorphic nodal prior; the pair stream (Exp. 2 above)
+enriches only the SYMMETRIC (real, phase-free) side of f, so it is not expected to move the
+sign structure. Backflow attacks the signature itself.
+
+**Construction** (`src/ansatz.py`, `backflow_hidden` knob, 0=off, backward-compatible):
+replace the raw coords inside eta with z_tilde_i = z_i + Delta_i, where Delta_i is a
+permutation-EQUIVARIANT DeepSets map — per-particle feature h_i=gelu(W x_i), symmetric pool
+g=mean_j h_j, Delta_i = bf_out(gelu(bf_dense2([h_i, g]))). Two structural facts, both
+verified in a CPU smoke test:
+  - Equivariance ⇒ eta(z_tilde) stays EXACTLY antisymmetric (float64 |exp(Δlogψ)+1| = 3e-13
+    under a pair swap). No regularizer — a structural guarantee, matches the thesis rigor bar.
+  - bf_out is ZERO-INITIALIZED ⇒ z_tilde = z at init (max|z_tilde−z| = 0), so eta reduces to
+    the baseline Vandermonde and the backflow ansatz starts life as plain FermiSets; gradients
+    then grow the deformation (grad norm into bf_out at init = 4e3, so training can move it).
+Because Delta is built from REAL features it depends on z-bar, so eta(z_tilde) acquires
+anti-holomorphic nodal content the fixed Vandermonde forbids — the missing freedom, added
+with an O(N²) (product) + O(N·H) (backflow MLP) cost that preserves the complexity argument.
+Backflow acts on the SIGNATURE ONLY; the symmetric xi embedding still sees raw coords,
+isolating "does a deformable, non-holomorphic node help" from decoder capacity.
+
+**Frame = the cheap supervised expressivity assay** (same `tools/pretrain_hf.py`, now with a
+`--backflow-hidden` flag; NOT a VMC run). This is deliberate: the assay measures pure
+representability, free of the basin dynamics that made every architecture-only fix fail as a
+VMC-from-scratch escape (eigenstates are stationary under ANY architecture). Runs (queued in
+tmux `backflow_fit`, chained behind the pair assay): N=6 h=64 bf=32
+(`logs/pretrain_n6_h64_bf32.log`) + N=3 bf=32 control (`..._n3_..._control.log`), otherwise
+identical to the 07-23 baseline (25000 steps, batch 8192).
+
+**What I expect (pre-registered).** Three outcomes, in rough order of how much each would
+move the thesis:
+  1. **Phase loss drops materially toward the N=3 scale (~0.2)** and the fitted VMC energy
+     falls toward 14. This is the outcome backflow is most likely to produce of any idea
+     tried, BECAUSE the wall is a PHASE/sign defect (phase loss pinned at 0.99) and backflow
+     is the only fix that modifies the object carrying the phase (arg eta), where the pair
+     stream adds only real magnitude features. Would reframe the headline from "FermiSets has
+     a representability ceiling" to "the FIXED-signature variant does; a trainable-signature
+     (backflow) variant lifts it" — a constructive contribution, not just a negative.
+  2. **Phase loss drops partially** (below 0.99 but not to N=3 levels): one equivariant layer
+     is not enough nodal capacity — follow-up is a wider/deeper or per-particle-nonlinear
+     backflow; still evidence the direction is right.
+  3. **Phase loss stays ~0.99**: even a trainable equivariant deformation of the Vandermonde
+     cannot reach the GS nodal topology — a DEEPER, still-publishable statement that the
+     obstruction is not merely "holomorphic prior" but something a continuous coordinate
+     deformation of a pairwise product cannot fix, pointing to learned-determinant/Pfaffian
+     signatures (which surrenders the O(N²) argument) as the only route.
+**Honest caveat regardless of outcome:** a successful supervised fit proves representability,
+NOT trainability — at zero-init the backflow ansatz IS plain FermiSets, so VMC-from-scratch
+would still fall into the same trap basin and still need projection/pretraining. The assay
+answers the expressivity question only; that is the correct first question. Results below.
+
+### RESULTS (2026-07-24) — pair AND backflow both hit the SAME N=6 phase wall; N=3 controls fit
+
+Full supervised-fit scorecard (`amp` = masked variance of real-log residual, `phase` =
+mean(1−cos(Im residual)); phase→0 = sign structure matched, phase≈1 = uncorrelated. The
+**phase loss is the expressivity signal**; see the VMC-energy caveat below):
+
+| fit               | amp   | phase | VMC E (fit) | exact | verdict                        |
+|-------------------|------:|------:|------------:|------:|--------------------------------|
+| N=3 plain (07-23) | 0.35  | 0.22  | 5.73        | 5.0   | fits                           |
+| N=6 plain (07-23) | 1.04  | 0.99  | 24.4        | 14.0  | **WALL**                       |
+| N=3 pair h64 p32  | 0.075 | 0.32  | 22.3        | 5.0   | fits (metric OK)               |
+| N=6 pair h64 p32  | 0.76  | 1.01  | 31.0        | 14.0  | wall persists                  |
+| N=3 backflow bf32 | 0.070 | **0.017** | 5.07    | 5.0   | **fits BEST of all variants**  |
+| N=6 backflow bf32 | 0.88  | 0.99  | 34.0        | 14.0  | **WALL (backflow-proof)**      |
+
+**Pair stream** — confirms the pre-registered mechanism exactly: it improves AMPLITUDE (amp
+0.35→0.075 at N=3, 1.04→0.76 at N=6) but leaves PHASE untouched (0.22→0.32 at N=3, 0.99→1.01
+at N=6). The pair features are real/exchange-even and enrich only the symmetric ξ side; the
+sign structure lives in η, which the pair stream never touches. Same wall at both N.
+
+**Backflow** — the informative result:
+- **N=3 control fits BEST of every variant tried** (phase 0.017, essentially exact sign
+  structure; VMC E 5.07, cleanest σ²=21). So backflow does NOT break the ansatz — where the
+  GS sign structure is reachable, a trainable equivariant signature is a strict improvement
+  over the fixed Vandermonde. (Own sub-finding worth a thesis sentence: backflow-FermiSets ≥
+  plain FermiSets in the representable regime.)
+- **N=6 stays pinned at phase 0.99** — the wall survives a trainable signature.
+- **Not an inert-backflow artifact** (checked directly, `outputs/pretrained/hf_N6_2d_h64_bf32.mpack`):
+  the trained deformation is HUGE — ⟨|Δ|⟩=1.20 vs ⟨|z|⟩=1.26 (ratio 0.96), max|Δ|=4.85, and
+  it shifts arg(η) by std 0.84 rad. The signature was deformed by ~100% of the coordinate
+  scale and still couldn't reach the target phase.
+- **The ceiling is independent of deformation magnitude**: N=3 (which SUCCEEDS) actually uses
+  a LARGER deformation (ratio 2.23) than N=6 (which FAILS, ratio 0.96). So the N=6 failure is
+  not "backflow didn't strain hard enough" — both regimes deform heavily; only N=3's target
+  is in the reachable class. A clean representability statement, not an optimization shortfall.
+
+**VMC-energy caveat (do NOT read the VMC-E column as the expressivity metric).** A good
+amp+phase fit can still show a high VMC energy: the N=3 pair fit (amp 0.075, phase 0.32)
+reports VMC E=22.3, σ²≈1900. Cause: the fit matches log ψ on the bulk of |ψ|² but the pair
+features' log(r²+ε) (and, for backflow, the deformed η) produce large LOCAL KINETIC energy
+near particle collisions — a thin region the masked supervised loss ignores but VMC samples
+fully. Backflow's VMC E is much cleaner (σ² 21–66 vs pair's ~10³) because it has no explicit
+collision-singular feature. Judge expressivity by phase loss; keep VMC-E only as corroboration
+where σ² is small (N=3 backflow 5.07 corroborates its 0.017 phase fit; the pair VMC-E's are
+collision-contaminated and uninformative).
+
+**Interpretation — the wall is the pairwise-product FORM of the signature, not its fixed
+coordinates.** Backflow made the signature coordinates fully trainable (and equivariant, so
+z̃_i=z̃_j can occur off the raw diagonal too) yet the N=6 sign structure stayed unreachable.
+What backflow CANNOT change is that η(z̃)=∏(z̃_i−z̃_j) is a product of pairwise factors, each
+contributing a +1-winding vortex — the LLL/Laughlin all-same-chirality vorticity. The N=6 GS
+fills shell 2 (orbitals (0,2),(1,1),(2,0)), whose nodes carry anti-holomorphic / opposite-
+chirality winding that an all-+1 product structure is conjectured not to reach.
+**Status of the mechanism: PLAUSIBLE, NOT PROVEN.** The clean-invariant version of the argument
+is not airtight — a factor (z̃_i−z̃_j) with z̃ depending on z̄ can in principle host a −1-winding
+zero, so "vorticity is conserved under backflow" is a conjecture, not a theorem. What IS solid is
+the empirical ceiling: neither an amplitude-enriching pair stream nor a strongly-engaged
+trainable-coordinate backflow moves the N=6 phase, while both leave (backflow: improves) the
+N=3 fit intact. Make the winding argument rigorous (or falsify it) before putting it in the
+thesis as more than a motivated hypothesis.
+
+**Consequence for "other ideas to beat the wall":**
+- Amplitude/denominator-side fixes (pair stream, singular decoder heads, idea #3) — FALSIFIED
+  direction for the PHASE wall by the pair result; the defect is in the sign, not the modulus.
+- Coordinate-deformation of the signature (backflow, idea #1) — FALSIFIED at N=6 here.
+- The one untested O(N²) idea that changes the signature's FORM (not just its coordinates):
+  **multiple/nonlinear per-particle encoders** η_k=∏(g_k(z_i)−g_k(z_j)) with a genuinely
+  NONLINEAR, non-injective g_k — non-injectivity makes g_k(z_i)=g_k(z_j) at z_i≠z_j, adding
+  nodes of potentially different winding, so it can in principle change the vorticity that
+  backflow cannot. This is the natural next test if the user wants to keep pushing (must avoid
+  the two documented dead ends: affine g = same nodes; η̄ = redundant). Expectation: uncertain —
+  it is the only remaining O(N²) lever that targets the actual (phase/form) defect.
+- Learned determinant/Pfaffian signature (idea #4) — would work but is O(N³) and rebuilds
+  Slater-Jastrow; the honest "if accuracy is the only goal" endpoint, one Outlook sentence.
+
+Artifacts: `logs/pretrain_n{3,6}_h64_{p32,bf32}{,_control}.log`,
+`outputs/pretrained/hf_N{3,6}_2d_h64_{p32,bf32}.mpack`. Backflow code: `src/ansatz.py`
+`backflow_hidden` knob + `_backflow_coords` (equivariant, zero-init output, antisymmetry
+exact to 3e-13). Assay flags: `tools/pretrain_hf.py --pair-hidden / --backflow-hidden`.

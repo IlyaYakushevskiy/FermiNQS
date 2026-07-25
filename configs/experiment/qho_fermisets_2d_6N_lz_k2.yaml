@@ -1,0 +1,42 @@
+# @package _global_
+# MARATHON, Arm A (budget axis) — N=6 QHO, K=2 projection. Exact GS E = 14.0.
+# margin(N=6, K=2) = 1: trap L_z=15 is ODD, deleted by the K=2 (even-L_z) sieve, at the
+# CHEAPEST possible projection cost O(2 N^2) — the strongest form of the thesis efficiency
+# claim (K=6=N would be O(N^3), as expensive as Slater, and is deliberately avoided).
+# Identical architecture to the N=3 benchmark (hidden 64, out 10, momentum-SR): the
+# question is whether the cheap fixed-K projection reaches the GS given a large budget.
+# Run in resumable 300-iter batches by tools/marathon_n6_k2.py (LR/optimizer reset each
+# batch keeps LR from decaying to zero over the long run and enables crash-resume).
+seed: 42
+use_wnb: False
+
+system:
+  N: 6
+  dim: 2
+  potential: qho_no_inter
+
+ansatz:
+  model: fermi_sets
+  hidden_units: 64
+  out_units: 10
+  pretrained_path: null
+  lz_proj_K: 2
+
+trainer:
+  vmc_iters: 300
+  lr: 0.01
+  n_samples: 4096
+  diag_shift: 0.05
+  validation: true
+  optimizer: momentum
+  momentum_beta: 0.9
+  chunk_size: 1024
+  lr_decay_rate: 0.95
+  lr_decay_steps: 100
+  pinv_rtol: 1e-12
+  pinv_atol: 1e-14
+
+sampler:
+  sigma: 0.1
+  n_chains: 512
+  sweep_size: 32
