@@ -1,0 +1,57 @@
+E0726 00:57:04.943026 1112242 cuda_executor.cc:1743] Could not get kernel mode driver version: ( INVALID_ARGUMENT: Version does not match the format X.Y.Z )
+E0726 00:57:04.956921 1112147 cuda_executor.cc:1743] Could not get kernel mode driver version: ( INVALID_ARGUMENT: Version does not match the format X.Y.Z )
+HF target: N=4 spinless fermions, occupied orbitals (n_x,n_y) = [(0, 0), (0, 1), (1, 0), (1, 1)]
+step      0  loss=2.90661  amp=1.87059  phase=1.03602
+step   2000  loss=1.75924  amp=0.95054  phase=0.80870
+step   4000  loss=1.54953  amp=0.85979  phase=0.68974
+step   6000  loss=2.16699  amp=1.30096  phase=0.86603
+step   8000  loss=1.31776  amp=0.73336  phase=0.58440
+step  10000  loss=1.48590  amp=0.82531  phase=0.66059
+step  12000  loss=1.49623  amp=0.82216  phase=0.67408
+step  14000  loss=1.62342  amp=0.85925  phase=0.76417
+step  16000  loss=1.51223  amp=0.82788  phase=0.68435
+step  18000  loss=1.45009  amp=0.79543  phase=0.65466
+step  20000  loss=1.37211  amp=0.75056  phase=0.62155
+step  22000  loss=1.89334  amp=0.97153  phase=0.92181
+step  24000  loss=1.49273  amp=0.80194  phase=0.69079
+step  26000  loss=1.48850  amp=0.78802  phase=0.70048
+step  28000  loss=1.41541  amp=0.74959  phase=0.66582
+step  30000  loss=1.32966  amp=0.70086  phase=0.62879
+step  32000  loss=1.45073  amp=0.82889  phase=0.62184
+step  34000  loss=1.39081  amp=0.75561  phase=0.63520
+step  36000  loss=1.68079  amp=0.83837  phase=0.84243
+step  38000  loss=1.53701  amp=0.80469  phase=0.73232
+step  40000  loss=1.46227  amp=0.75283  phase=0.70944
+step  42000  loss=1.76775  amp=0.93896  phase=0.82879
+step  44000  loss=1.35840  amp=0.73809  phase=0.62031
+step  46000  loss=1.78748  amp=0.93082  phase=0.85665
+step  48000  loss=1.66480  amp=0.89650  phase=0.76830
+step  50000  loss=1.54439  amp=0.82091  phase=0.72348
+step  52000  loss=1.53093  amp=0.82635  phase=0.70458
+step  54000  loss=1.57996  amp=0.80974  phase=0.77022
+step  56000  loss=1.47184  amp=0.76472  phase=0.70712
+step  58000  loss=1.40076  amp=0.73325  phase=0.66751
+step  60000  loss=1.38239  amp=0.74269  phase=0.63970
+step  62000  loss=1.53343  amp=0.80816  phase=0.72527
+step  64000  loss=1.40669  amp=0.77279  phase=0.63390
+step  66000  loss=1.33358  amp=0.70960  phase=0.62398
+step  68000  loss=1.39991  amp=0.75585  phase=0.64406
+step  70000  loss=1.59997  amp=0.85503  phase=0.74494
+step  72000  loss=1.32720  amp=0.69275  phase=0.63445
+step  74000  loss=1.35036  amp=0.73121  phase=0.61915
+step  76000  loss=1.36275  amp=0.74331  phase=0.61945
+step  78000  loss=1.37820  amp=0.75178  phase=0.62643
+step  80000  loss=1.31282  amp=0.72790  phase=0.58492
+step  82000  loss=1.30191  amp=0.73397  phase=0.56794
+step  84000  loss=1.28625  amp=0.71739  phase=0.56886
+step  86000  loss=1.19496  amp=0.66735  phase=0.52762
+step  88000  loss=1.38977  amp=0.74504  phase=0.64474
+step  90000  loss=1.25495  amp=0.69325  phase=0.56169
+step  92000  loss=1.23776  amp=0.70454  phase=0.53323
+step  94000  loss=1.22582  amp=0.68804  phase=0.53778
+step  96000  loss=1.47244  amp=0.86842  phase=0.60402
+step  98000  loss=1.27489  amp=0.72591  phase=0.54899
+step  99999  loss=1.24527  amp=0.71745  phase=0.52782
+saved: /home/ilya/FermiNQS/outputs/pretrained/hf_N4_2d_h64_m11_long.mpack
+
+VMC energy of the HF-pretrained state: 12.607+0.020j ± 0.099 [σ²=1.6e+02, R̂=1.002]  (exact GS = 8.0, HF = exact here)

@@ -15,7 +15,7 @@ class FermiSets(nnx.Module):
      (Fermions = Bosons + One).” doi:10.48550/arXiv.2510.11431.
     """
      
-    def __init__(self , dim: int , N: int, rngs: nnx.Rngs, log : logging.Logger,  pool_fct_name : str = None, L: float = None , hidden_units: int = 8, out_units: int = 10, lz_proj_K: int = 0, pair_hidden: int = 0, backflow_hidden: int = 0 ):
+    def __init__(self , dim: int , N: int, rngs: nnx.Rngs, log : logging.Logger,  pool_fct_name : str = None, L: float = None , hidden_units: int = 8, out_units: int = 10, lz_proj_K: int = 0, pair_hidden: int = 0, backflow_hidden: int = 0 , pair_sig_hidden: int = 0 ):
 
         self.dim = dim
         self.N = N
@@ -41,6 +41,15 @@ class FermiSets(nnx.Module):
         # Psi head linear access to sum_pairs [log(1+r^2) - log(r^2+eps)] = -log T (T = |eta|^2),
         # the singular prefactor needed for triangle-area sign structures. 0 disables (old arch).
         self.pair_hidden = pair_hidden
+        # Learned antisymmetric PAIR FUNCTION for the signature (2026-07-25). Backflow
+        # (above) deformed the coordinates but kept the pairwise form h_ij = g(i) - g(j),
+        # a DIFFERENCE OF PER-PARTICLE VALUES; the N=6 phase wall survived it. This knob
+        # generalises the pair function itself: h_ij = (z_i - z_j) + [m(r_i,r_j) - m(r_j,r_i)]
+        # with m a joint MLP of BOTH particles, which is not expressible as g(i) - g(j).
+        # Antisymmetry is exact and structural: under a transposition exactly one factor
+        # flips sign and the remaining factors permute in pairs. Zero-init output => eta is
+        # the baseline Vandermonde at init, so this is a strict generalisation. 0 disables.
+        self.pair_sig_hidden = pair_sig_hidden
         # L_z-sector projection: average over lz_proj_K rotations, keeping only
         # L_z = 0 (mod K) components. Kills the holomorphic trap family
         # (eta * holomorphic-symmetric has L_z = N(N-1)/2 + d > 0) exactly.
@@ -71,6 +80,19 @@ class FermiSets(nnx.Module):
             # unbounded features with this init blew up VMC at step 0 (2026-07-15 shakedown).
             self.pair_dense1 = nnx.Linear(in_features=n_pair_feats, out_features=pair_hidden, rngs=rngs)
             self.pair_dense2 = nnx.Linear(in_features=pair_hidden, out_features=pair_hidden, rngs=rngs)
+
+        ### LEARNED PAIR SIGNATURE (optional): generalises z_i - z_j to a learned
+        ### antisymmetric pair function. 2D only (the eta product is complex there).
+        if pair_sig_hidden:
+            if dim != 2:
+                raise ValueError("pair_sig_hidden is only implemented for dim=2")
+            self.ps_dense1 = nnx.Linear(in_features=2 * dim, out_features=pair_sig_hidden, rngs=rngs)
+            self.ps_dense2 = nnx.Linear(in_features=pair_sig_hidden, out_features=pair_sig_hidden, rngs=rngs)
+            # zero-init: h_ij == z_i - z_j at init, gradients then grow the correction
+            self.ps_out = nnx.Linear(
+                in_features=pair_sig_hidden, out_features=2, rngs=rngs,
+                kernel_init=jax.nn.initializers.zeros, bias_init=jax.nn.initializers.zeros,
+            )
 
         ### SIGNATURE BACKFLOW stream (optional): equivariant coordinate deformation for eta
         if backflow_hidden:
@@ -104,6 +126,19 @@ class FermiSets(nnx.Module):
         d = self.bf_out(d)                                       # (batch, N, dim), 0 at init
         return x_reshaped + d
 
+    def _pair_signature(self, ri, rj):
+        """Antisymmetric learned correction to z_i - z_j: m(r_i,r_j) - m(r_j,r_i).
+
+        Exactly antisymmetric under i<->j by construction, for ANY weights, so the
+        eta product stays exactly antisymmetric under particle exchange.
+        """
+        def m(a, b):
+            u = nnx.gelu(self.ps_dense1(jnp.concatenate([a, b], axis=-1)))
+            u = nnx.gelu(self.ps_dense2(u))
+            return self.ps_out(u)
+        d = m(ri, rj) - m(rj, ri)
+        return d[..., 0] + 1j * d[..., 1]
+
     def eta_antisymmetric(self, x):
             x_reshaped = x.reshape(-1, self.N, self.dim)
             #x is (batch, N, dim)
@@ -132,6 +167,11 @@ class FermiSets(nnx.Module):
                 z = x_reshaped[:, :, 0] + 1j * x_reshaped[:, :, 1]
                 idx_i, idx_j = jnp.tril_indices(z.shape[1], k=-1)
                 diff = z[:, idx_i] - z[:, idx_j]
+
+                if self.pair_sig_hidden:
+                    diff = diff + self._pair_signature(x_reshaped[:, idx_i, :],
+                                                       x_reshaped[:, idx_j, :])
+
                 diff_sq = jnp.square(jnp.abs(diff))
                     
                 a = 1.0

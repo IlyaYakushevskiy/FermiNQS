@@ -1562,3 +1562,247 @@ Artifacts: `logs/pretrain_n{3,6}_h64_{p32,bf32}{,_control}.log`,
 `outputs/pretrained/hf_N{3,6}_2d_h64_{p32,bf32}.mpack`. Backflow code: `src/ansatz.py`
 `backflow_hidden` knob + `_backflow_coords` (equivariant, zero-init output, antisymmetry
 exact to 3e-13). Assay flags: `tools/pretrain_hf.py --pair-hidden / --backflow-hidden`.
+
+---
+
+## 2026-07-25 — Supervised expressivity assay extended to N=4,5 + a methodological hole in the N=6 verdict
+
+**Why.** The thesis Results had 4.3 (N=4 width scan) concluding "not expressivity" and 4.7
+(N=6) concluding "representability wall". The supervised assay that licensed both had only
+ever been run at **N=3 and N=6** — there was no N=4 or N=5 data anywhere in the repo, so the
+N=4 section was answering its own question with N=3 evidence.
+
+**Fix 1 — fill in the curve.** `tools/pretrain_hf.py` gained `--orbitals` (explicit
+occupation) and `--tag`. N=4 and N=5 are OPEN shells, so aufbau picks one arbitrary member
+of a degenerate GS manifold; each N was therefore run against TWO distinct members. At N=4
+the genuinely distinct member is (1,1), since (0,2) and (2,0) are related by a 90 deg
+rotation and eta is rotation-covariant.
+
+Same protocol as the recorded N=3/N=6 fits (hidden 64, 25k steps, batch 8192, lr 2e-3),
+phase loss reported as the tail mean of the last 3 logged points:
+
+| target                    | phase | amp  |
+|---------------------------|------:|-----:|
+| N=3 (closed shell)        | 0.19  | 0.38 |
+| N=4, top orbital (0,2)    | 0.71  | 0.75 |
+| N=4, top orbital (1,1)    | 0.45  | 0.68 |
+| N=5, (0,2)(1,1)           | 0.90  | 0.93 |
+| N=5, (0,2)(2,0)           | 0.84  | 0.92 |
+| N=6, hidden 64            | 0.99  | 1.07 |
+| N=6, hidden 128           | 1.00  | 0.99 |
+
+- **It is a gradient, not a cliff.** Monotone 0.19 -> 0.45/0.71 -> 0.84/0.90 -> 0.99. The
+  ansatz's grip on the sign structure is already half gone at N=4. "Works at 3, fails at 6"
+  is too coarse to be the thesis's claim.
+- **Degenerate-member choice shifts the value, not the trend** (N=4: 0.45 vs 0.71). Aufbau
+  had been picking the HARDER member, so any N=4 claim from aufbau alone was pessimistic.
+- **Qualitatively different failures**: N=6 never departs from 1.0 at any step; N=4 descends
+  visibly and raggedly. Only the latter is plausibly a budget question — 100k-step controls
+  queued for N=4 and N=6.
+- Figure: `plots/plot_supervised_assay.py` -> `thesis/supervised_assay.png` (phase loss vs
+  step, plus converged phase loss vs N with both members marked).
+
+**Fix 2 — the assay tested the WRONG FUNCTION CLASS (important).** `pretrain_hf.py` built
+`FermiSets(...)` with no `lz_proj_K`, so every supervised fit ever run, including the N=6
+one that the "representability ceiling" conclusion rests on, fitted the **raw** network. The
+thesis's method is the **projected** one, and our own N=3 data proves these are not the same
+class in the relevant sense: the step-750 checkpoint has F=0.9988 against the GS *with* the
+projection, while the SAME parameters *without* it give E=7.41 and GS weight 0.06. So
+P_K(psi) can BE the ground state while psi itself is nowhere near it, and
+"raw ansatz cannot be fit to psi_GS" does NOT imply "projected ansatz cannot be fit to
+psi_GS". Added `--lz-proj-K` to the assay. **RESULT (2026-07-25, 25k steps, hidden 64):**
+
+| fit                    | phase | amp  |
+|------------------------|------:|-----:|
+| N=3 raw                | 0.19  | 0.38 |
+| **N=3 projected K=6**  | **0.066** | 0.16 |
+| N=6 raw                | 0.99  | 1.07 |
+| **N=6 projected K=6**  | **0.99**  | 1.02 |
+
+- **The control does not merely pass, it improves.** Projected N=3 fits ~3x better than the
+  raw network (0.066 vs 0.19) and is already below the raw network's FINAL value by step
+  2000. So the projection does not break the supervised machinery; it makes the fit easier,
+  as expected, since the sieve deletes wrong-sector content the fit would otherwise have to
+  cancel by hand. This closes the only loophole in the N=6 projected null.
+- **The control also passes the PHYSICAL check.** The projected N=3 fitted state evaluates to
+  **E = 5.0511 +- 0.0088, sigma^2 = 1.6** against the exact 5.0 (raw N=3 fit: E = 5.73 at
+  phase 0.20). Small sigma^2 means the energy is trustworthy here, unlike the
+  collision-contaminated cases, so metric and physics agree: a low phase loss really does
+  mean the ansatz is on the ground state.
+- **N=6 is pinned at 0.99 with the projection exactly as without it.** The method's function
+  class is as blocked as the raw ansatz.
+
+**VERDICT: the N=6 ground state is not representable by FermiSets, with or without L_z
+projection.** The projection fixes WHICH SECTOR the search occupies; it buys no nodal
+freedom, and nodal freedom is what is missing. The 2026-07-23 ceiling conclusion therefore
+survives, now as a statement about the method rather than about a network we never use.
+
+Caveat recorded: the projected N=6 run's post-fit VMC readout OOMed (8.98 GiB; the K-fold
+model costs K x memory in the kinetic-energy pass on an 8 GB card). The FIT is unaffected.
+`pretrain_hf.py` now saves the checkpoint BEFORE the readout, scales n_samples/chunk by K,
+and wraps the readout, so a readout failure can never cost artifacts again.
+
+**Fix 3 — new architecture knob, `pair_sig_hidden` (untested at time of writing).** All
+falsified fixes so far touched the decoder (width, pair stream) or eta's COORDINATES
+(backflow, z~ = z + Delta). Backflow kept the form h_ij = g(i) - g(j), a difference of
+per-particle values. The new knob generalises the pair function itself:
+h_ij = (z_i - z_j) + [m(r_i,r_j) - m(r_j,r_i)], m a joint MLP of BOTH particles.
+Verified (`src/ansatz.py`, CPU, float64):
+- zero-init eta is bit-identical to the plain Vandermonde (max diff 0.000e+00), so it is a
+  strict generalisation and inert at default 0;
+- antisymmetry EXACT for arbitrary weights: eta(swap)+eta = 1.8e-16, log-psi antisymmetry
+  7.1e-11 over all 15 N=6 pair swaps (baseline-level, residual is the logsumexp eps);
+- **cocycle test h_ij + h_jk + h_ki = 1.42 != 0** — machine-checkable proof that it lies
+  OUTSIDE the g(i)-g(j) class backflow was confined to (any per-particle difference
+  satisfies the cocycle identity identically). This is the concrete version of the
+  2026-07-24 conclusion that "the wall is the pairwise-product FORM, not its coordinates".
+- Still O(N^2), still Fu's construction (his Eq. 10 permits any antisymmetric signature).
+- `tests/stage0_sanity.py` passes unchanged. Assay flag: `--pair-sig-hidden`.
+
+### Architecture assay result (2026-07-25, `pair_sig_hidden=32`, 25k steps, hidden 64)
+
+| N | baseline phase | pair-sig phase | engagement | per-factor modulus | VMC sigma^2 | read |
+|---|---:|---:|---:|---:|---:|---|
+| 3 | 0.19  | 0.235 | 3.04  | -     | 1.9e3 (base 1.3e1) | slightly WORSE |
+| 4 | 0.445 | **0.381** | 0.42 | 0.706 (base 0.797) | 1.6e2 (base 1.1e2) | **clean 14% gain** |
+| 5 | 0.898 | 0.627 | 32.5  | 0.964 (SATURATED) | 6.6e6 (base 6.8e3) | ARTEFACT, do not quote |
+| 6 | 0.99  | 0.997 | 1.20  | -     | 4.1e3 | no change |
+
+**The N=5 headline number is not a result.** The regulariser `h/sqrt(|h|^2+a^2)` has `a`
+hardcoded to 1.0; at mean|h| = 58.6 it SATURATES, every pair factor reaching modulus 0.964
+instead of ~0.5, so |eta| becomes near-constant (median 0.76 vs 0.09 baseline) and eta's
+zeros essentially vanish. The optimiser did not find a better nodal surface; it inflated the
+correction until the signature stopped carrying amplitude structure at all. The masked
+supervised loss ignores the near-collision region where this does its damage, which is
+exactly why the phase metric improved while sigma^2 blew up by 1000x. Same failure mode as
+the pair-feature stream (RESEARCH_LOG 2026-07-24 VMC-energy caveat).
+
+**The N=4 gain IS clean** and is the only positive architectural result so far: engagement
+0.42 (no saturation), per-factor modulus BELOW baseline, |eta| zeros intact (min 1.1e-4,
+0% of samples above 0.99), sigma^2 = 1.6e2 against a 1.1e2 baseline, phase 0.445 -> 0.381.
+So generalising the pair FUNCTION (beyond backflow's coordinate deformation) does buy real
+sign-structure expressivity in the partially-blocked regime.
+
+**It does not touch the N=6 ceiling** (0.997 vs 0.99), with engagement 1.20 proving the
+correction deformed and still failed. Three architectural levers have now failed at N=6:
+pair features, backflow, learned pair function.
+
+**Concrete follow-up if this is ever revisited**: bound the correction, or scale `a` with
+|h|, so the saturated solution is not reachable; then re-run N=5.
+
+**CAVEAT ADDED 2026-07-26 — the N=4 gain is CONFOUNDED, do not quote it yet.** The 100k
+budget control landed: baseline N=4 (0,2) goes 0.707 (25k) -> **0.591 (100k)**, i.e. the
+BASELINE improves ~16% given 4x the budget, which is the same size as the pair-signature's
+14% "gain" at fixed 25k. Worse, the two are not even the same target: the 100k control used
+the (0,2) member while the pair-sig run used (1,1). So the only positive architectural
+result may be nothing but extra optimisation afforded to a slightly larger model. Matched
+control now running (`run_matched_n4.sh`): baseline vs pair-sig, SAME member (1,1), SAME
+budget (100k). Until it lands, the honest statement is that NO architectural variant has
+been shown to improve sign-structure expressivity.
+
+### Budget controls (2026-07-26, 100k steps vs 25k, raw ansatz, hidden 64)
+
+| target | phase @25k | phase @100k | reading |
+|---|---:|---:|---|
+| N=4, (0,2) | 0.707 | **0.591** | still descending; 25k values are BOUNDS, not converged |
+| N=6         | 0.99  | **0.995** | immovable under 4x budget |
+
+**This is the cleanest contrast in the study.** N=4 improves ~16% given 4x the steps, so its
+failure is partly an optimisation-budget shortfall on top of a partial representability
+limit. N=6 does not move at all, at either width, with or without projection, under 4x
+budget, or under three architectural variants. Only the second is a wall.
+
+Consequence for the write-up: quote N=4/N=5 phase numbers as UPPER BOUNDS at fixed budget,
+never as converged expressivity limits. The N=6 number is the only one safe to quote as a
+ceiling. (VMC energies of the 100k fits are meaningless here: sigma^2 = 2.3e3 at N=4 and
+3.0e11 at N=6, the usual collision contamination amplified by long fitting.)
+
+### Matched N=4 control + the saturation coupling (2026-07-26) — architectural claim RETRACTED
+
+Paired comparison, same member (1,1), same seed, same schedule:
+
+| budget | baseline | pair-sig | gap | pair-sig engagement | per-factor modulus | |eta| median | |eta| min |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 25k  | 0.445 | 0.381 | 0.064 | 0.42 | 0.706 (base 0.797) | 0.108 | 1.1e-4 |
+| 100k | 0.528 | 0.435 | 0.093 | 3.94 | **0.944** | **0.770** | **8.0e-3** |
+
+**The gain and the artefact are coupled — this is the finding.** The clean run (25k, modulus
+BELOW baseline, zeros intact) gains only 0.064, which is inside the metric's own spread. The
+larger gain (0.093) appears only once the correction inflates to mean|h| = 7.7 and the
+regulariser saturates: per-factor modulus 0.944, |eta| median 0.770 (8x the baseline), zeros
+filling in from 1e-4 to 8e-3. Identical mode to the N=5 blow-up (engagement 32.5), milder.
+So the mechanism of the "improvement" is the saturation: the masked supervised loss excludes
+the near-collision region, so flattening eta into a near-nodeless phase factor lowers the
+phase term at no visible cost.
+
+**RETRACTION**: the "clean 14% gain at N=4" logged earlier tonight does not stand. No
+architectural variant (pair features, backflow, learned pair function) has produced a
+credible improvement in sign-structure expressivity.
+
+**Metric spread — every phase number in this repo is n=1.** The same N=4 (1,1) config gave
+0.445 at 25k and 0.528 at 100k, i.e. budget/schedule alone moves it by ~0.08, comparable to
+the effects being claimed. `--seed` added to `tools/pretrain_hf.py` (drives init AND batch
+sampling; default 42 so nothing already recorded changes). Seed study running at N=6 (the
+ceiling the argument rests on) and N=4 (the intermediate regime), seeds 43/44.
+
+**Real, reusable finding**: the hardcoded `a = 1.0` in `diff/sqrt(|diff|^2 + a^2)` admits a
+degenerate solution. Any variant that lets the signature's scale grow will find it, and the
+masked supervised loss cannot detect it. Diagnose with the per-factor modulus and |eta|
+median, not with the phase loss. Fix before revisiting: bound the correction or scale `a`.
+
+### Seed replication (2026-07-26, 3 seeds, 25k, hidden 64) — error bars at last
+
+| target | seeds 42/43/44 | mean +- std | range |
+|---|---|---|---|
+| N=6 (the ceiling) | 0.992, 1.000, 1.009 | **1.000 +- 0.009** | 0.017 |
+| N=4, (1,1)        | 0.445, 0.537, 0.450 | **0.478 +- 0.052** | 0.093 |
+
+- **The N=6 ceiling is reproducible to ~1%.** Phase loss is exactly 1.0 within error: the
+  sign structure is uncorrelated with the target at every seed. Combined with: no change at
+  hidden 128, none under L_z projection, none under 4x budget, none under three
+  architectural variants. This is the most robust number in the study and the one the
+  thesis conclusion should rest on.
+- **The N=4 seed range is 0.093 — identical to the largest pair-signature gap ever seen
+  (0.093 at 100k).** The architectural effect is entirely inside seed noise. Retraction
+  confirmed quantitatively, not by judgement.
+- **Rule going forward: no claim from a phase-loss difference below ~0.1 without >= 3 seeds.**
+
+### Overlap of the supervised fits with the exact GS (2026-07-26) — the physical metric
+
+`tools/fit_overlap.py` (new): F = |<psi_fit|psi_GS>|^2 for any N, importance-sampled from
+N(0,1)^(N*dim) with a bootstrap error, target taken from the same `make_log_hf` occupation
+the fit used. **`--orbitals` MUST match the checkpoint's target**: at an open shell the
+aufbau default is an orthogonal member of the degenerate manifold and returns F=0 for a
+perfectly good fit (this bit me once already).
+
+| N | occupation | shell-2 orbitals | F |
+|---|---|---:|---:|
+| 3 | closed shell   | 0 | **0.911 +- 0.001** |
+| 4 | (1,1)          | 1 | **0.799 +- 0.001** |
+| 4 | (0,2)          | 1 | 0.297 +- 0.004 |
+| 5 | (0,2)(2,0)     | 2 | **0.109 +- 0.003** |
+| 5 | (0,2)(1,1)     | 2 | 0.026 +- 0.002 |
+| 6 | closed shell   | 3 | **0.0000 +- 0.0001** |
+| 7 | aufbau         | 3+ | **0.0000 +- 0.0001** |
+| 8 | aufbau         | 3+ | **0.0001 +- 0.0004** |
+
+**This CORRECTS the phase-loss picture.** Phase loss said N=4 was half-failed (0.445);
+overlap says the ansatz captures **80%** of the N=4 ground state. Phase loss weights every
+configuration's angle equally, including tails carrying almost no probability; overlap
+weights by |psi|^2. **The cliff is between N=4 and N=5 (0.80 -> 0.11), not at N=4.** Quote
+overlap, not phase loss, for any representability claim; keep amp/phase only as the
+diagnostic that localises the failure to sign structure rather than modulus.
+
+**Mechanism (CORRELATIONAL so far, control not yet run).** Overlap tracks the number of
+shell-2 orbitals the target occupies, i.e. the non-holomorphic ones: 0 -> 0.91, 1 -> 0.80,
+2 -> 0.11, 3 -> 0.00, roughly an order of magnitude per orbital. The within-N=4 split fits
+the same reading: shell 2 carries m in {-2,0,+2}; (1,1) ~ xy is pure |m|=2 while (0,2) ~ y^2
+mixes in m=0, and the holomorphic eta favours maximal |m| — hence 0.80 vs 0.30. This is the
+Vandermonde-nodal-prior argument measured in an observable, with the ordering PREDICTED
+rather than fitted afterwards.
+
+**Control that would make it causal (NOT RUN, ~15 min GPU):** at FIXED N=5, fit the
+holomorphic target (maximal-|m| orbital per shell, i.e. the trap state) alongside the true
+GS. Same N, same machinery, only the target's holomorphic content differs. Expect F ~ 1 for
+the holomorphic target against 0.11 for the GS; that would prove the failure is about WHICH
+state is asked for, not about N or the fitting setup. Needs a `--target holo` option.

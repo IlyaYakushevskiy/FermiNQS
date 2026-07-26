@@ -21,6 +21,41 @@ session can check status without re-deriving anything.
 
 ---
 
+## P-NOW — supervised expressivity assay (2026-07-25): the N=6 ceiling, re-measured on the right class
+
+**CLOSED for the raw-vs-projected question; architecture follow-up in flight.**
+
+- [x] **The published N=6 ceiling had been measured on the WRONG function class.**
+      `tools/pretrain_hf.py` never passed `lz_proj_K`, so every supervised fit, including
+      the one the ceiling conclusion rests on, fitted the BARE ansatz while the method uses
+      P_K(psi). Our own N=3 checkpoint proves these differ: F=0.9988 with projection,
+      E=7.41 / GS weight 0.06 without. Added `--lz-proj-K`.
+- [x] **Re-measured. VERDICT: N=6 is unreachable with OR without projection** (phase 0.99
+      both). The N=3 projected CONTROL not only passes but improves on the bare fit
+      (phase 0.066 vs 0.19; E = 5.051 +- 0.009 vs exact 5.0, sigma^2 = 1.6), so the null at
+      N=6 cannot be blamed on the projection breaking the fit. Ceiling conclusion survives,
+      now as a statement about the METHOD.
+- [x] **Expressivity is a gradient, not a cliff**: phase 0.19 (N=3), 0.45/0.71 (N=4),
+      0.84/0.90 (N=5), 0.99 (N=6), with two degenerate members fitted at each open shell.
+      Thesis 4.3/4.4/4.7 rewritten around this; figure `thesis/supervised_assay.png`.
+- [ ] **IN FLIGHT — learned antisymmetric pair signature** (`pair_sig_hidden`, new knob):
+      h_ij = (z_i-z_j) + [m(r_i,r_j) - m(r_j,r_i)], i.e. the pair FUNCTION is learned rather
+      than the pair COORDINATES (backflow). Verified exactly antisymmetric for arbitrary
+      weights (1.8e-16), zero-init identical to the Vandermonde, and outside the g(i)-g(j)
+      class (cocycle 1.42 != 0). Runner: `run_arch_queue.sh`, progress in
+      `logs/arch_queue_progress.log`. Run at N=6, 3, 5, 4 — **N=6 alone is a saturated
+      metric (phase pinned at ~1.0, no headroom), so N=4/N=5 are where a real improvement
+      would show.** If it shifts the curve: future-work section with data. If not: the
+      ceiling claim strengthens; the engagement ratio printed by the tool proves the
+      correction actually deformed rather than staying inert.
+      Fairness note for the write-up: the knob adds ~1.3k parameters, but the hidden-128
+      control (far more parameters, in the decoder) made N=6 slightly WORSE, so any gain
+      here is attributable to nodal freedom rather than parameter count.
+- [ ] Budget controls queued after it: N=4 and N=6 at 100k steps (N=4 was still falling at
+      25k, so its value is a bound, not a converged number).
+
+---
+
 ## P0 — K-vs-N margin ablation (cheap, high value, directly supports the thesis narrative)
 
 Settled analytically (`tools/lz_margin.py`, RESEARCH_LOG 2026-07-16): required K does NOT

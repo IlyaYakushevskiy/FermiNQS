@@ -1,0 +1,21 @@
+E0725 23:21:18.723328 1083670 cuda_executor.cc:1743] Could not get kernel mode driver version: ( INVALID_ARGUMENT: Version does not match the format X.Y.Z )
+E0725 23:21:18.737141 1083594 cuda_executor.cc:1743] Could not get kernel mode driver version: ( INVALID_ARGUMENT: Version does not match the format X.Y.Z )
+HF target: N=3 spinless fermions, occupied orbitals (n_x,n_y) = [(0, 0), (0, 1), (1, 0)]
+step      0  loss=2.32467  amp=1.32530  phase=0.99938
+step   2000  loss=1.07712  amp=0.57187  phase=0.50525
+step   4000  loss=0.74913  amp=0.42020  phase=0.32893
+step   6000  loss=0.68570  amp=0.38721  phase=0.29849
+step   8000  loss=0.57683  amp=0.30244  phase=0.27439
+step  10000  loss=0.57128  amp=0.30357  phase=0.26771
+step  12000  loss=0.54858  amp=0.29183  phase=0.25675
+step  14000  loss=0.60473  amp=0.31442  phase=0.29031
+step  16000  loss=0.56094  amp=0.30215  phase=0.25879
+step  18000  loss=0.55121  amp=0.29570  phase=0.25551
+step  20000  loss=0.56319  amp=0.30750  phase=0.25569
+step  22000  loss=0.58100  amp=0.31363  phase=0.26737
+step  24000  loss=0.50023  amp=0.26244  phase=0.23780
+step  24999  loss=0.48324  amp=0.24858  phase=0.23466
+saved: /home/ilya/FermiNQS/outputs/pretrained/hf_N3_2d_h64_ps32.mpack
+pair-signature engagement: mean|correction| / mean|z_i - z_j| = 3.0351 (0 = never left the Vandermonde)
+
+VMC energy of the HF-pretrained state: 11.30+0.00j ± 0.32 [σ²=1.9e+03, R̂=1.002]  (exact GS = 5.0, HF = exact here)
