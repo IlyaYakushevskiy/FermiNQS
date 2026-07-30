@@ -1,0 +1,84 @@
+\begin{thebibliography}{10}
+
+\bibitem{orus_practical_2014}
+R.~Orús, ``A practical introduction to tensor networks: {Matrix} product
+  states and projected entangled pair states,'' {\em Annals of Physics},
+  vol.~349, pp.~117--158, Oct. 2014.
+
+\bibitem{carleo_solving_2017}
+G.~Carleo and M.~Troyer, ``Solving the quantum many-body problem with
+  artificial neural networks,'' {\em Science}, vol.~355, pp.~602--606, Feb.
+  2017.
+
+\bibitem{feynman_energy_nodate}
+R.~P. Feynman and M.~Cohen, ``Energy {Spectrum} of the {Excitations} in
+  {Liquid} {Helium},''
+
+\bibitem{pfau_ab_2020}
+D.~Pfau, J.~S. Spencer, A.~G. D.~G. Matthews, and W.~M.~C. Foulkes,
+  ``\textit{{Ab} initio} solution of the many-electron {Schrödinger} equation
+  with deep neural networks,'' {\em Physical Review Research}, vol.~2,
+  p.~033429, Sept. 2020.
+
+\bibitem{griffiths_introduction_2008}
+D.~J. Griffiths, {\em Introduction to electrodynamics}.
+\newblock Pearson international edition, San Francisco: Pearson/Benjamin
+  Cummings, 3. ed., reprint., [intern. ed.]~ed., 2008.
+
+\bibitem{lange_architectures_2024}
+H.~Lange, A.~V.~d. Walle, A.~Abedinnia, and A.~Bohrdt, ``From {Architectures}
+  to {Applications}: {A} {Review} of {Neural} {Quantum} {States},'' July 2024.
+\newblock arXiv:2402.09402 [cond-mat].
+
+\bibitem{rende_simple_2024}
+R.~Rende, L.~L. Viteritti, L.~Bardone, F.~Becca, and S.~Goldt, ``A simple
+  linear algebra identity to optimize {Large}-{Scale} {Neural} {Network}
+  {Quantum} {States},'' {\em Communications Physics}, vol.~7, p.~260, Aug.
+  2024.
+\newblock arXiv:2310.05715 [cond-mat.str-el].
+
+\bibitem{becca_quantum_2017}
+F.~Becca and S.~Sorella, {\em Quantum {Monte} {Carlo} {Approaches} for
+  {Correlated} {Systems}}.
+\newblock Cambridge University Press, 1~ed., Nov. 2017.
+
+\bibitem{fu_minimal_2025}
+L.~Fu, ``A minimal and universal representation of fermionic wavefunctions
+  (fermions = bosons + one),'' Oct. 2025.
+\newblock arXiv:2510.11431 [cond-mat].
+
+\bibitem{zaheer_deep_2018}
+M.~Zaheer, S.~Kottur, S.~Ravanbakhsh, B.~Poczos, R.~Salakhutdinov, and
+  A.~Smola, ``Deep {Sets},'' Apr. 2018.
+\newblock arXiv:1703.06114 [cs].
+
+\bibitem{carleo_netket_2019}
+G.~Carleo, K.~Choo, D.~Hofmann, J.~E. Smith, T.~Westerhout, F.~Alet, E.~J.
+  Davis, S.~Efthymiou, I.~Glasser, S.-H. Lin, M.~Mauri, G.~Mazzola, C.~B.
+  Mendl, E.~Van~Nieuwenburg, O.~O’Reilly, H.~Théveniaut, G.~Torlai,
+  F.~Vicentini, and A.~Wietek, ``{NetKet}: {A} machine learning toolkit for
+  many-body quantum systems,'' {\em SoftwareX}, vol.~10, p.~100311, July 2019.
+
+\bibitem{vicentini_netket_2022}
+F.~Vicentini, D.~Hofmann, A.~Szabó, D.~Wu, C.~Roth, C.~Giuliani, G.~Pescia,
+  J.~Nys, V.~Vargas-Calderón, N.~Astrakhantsev, and G.~Carleo, ``{NetKet} 3:
+  {Machine} {Learning} {Toolbox} for {Many}-{Body} {Quantum} {Systems},'' {\em
+  SciPost Physics Codebases}, p.~7, Aug. 2022.
+
+\bibitem{bradbury_jax_2018}
+J.~Bradbury, R.~Frostig, P.~Hawkins, M.~J. Johnson, Y.~Katariya, C.~Leary,
+  D.~Maclaurin, G.~Necula, A.~Paszke, J.~VanderPlas, S.~Wanderman-Milne, and
+  Q.~Zhang, ``{JAX}: composable transformations of {Python}+{NumPy} programs,''
+  2018.
+
+\bibitem{heek_flax_2024}
+J.~Heek, A.~Levskaya, A.~Oliver, M.~Ritter, B.~Rondepierre, A.~Steiner, and
+  M.~v. Zee, ``Flax: {A} neural network library and ecosystem for {JAX},''
+  2024.
+
+\bibitem{medvidovic_variational_2023}
+M.~Medvidović and D.~Sels, ``Variational {Quantum} {Dynamics} of
+  {Two}-{Dimensional} {Rotor} {Models},'' {\em PRX Quantum}, vol.~4, p.~040302,
+  Oct. 2023.
+
+\end{thebibliography}

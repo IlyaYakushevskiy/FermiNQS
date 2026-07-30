@@ -1,9 +1,10 @@
 """
-QUEUE.md P0 writeup figure: N=6 QHO validation-energy convergence for K=3, K=4, K=6
+QUEUE.md P0 writeup figure: N=6 QHO validation-energy convergence for K=3, K=4, K=6, K=12
 (L_z projection margin ablation) plus the SlaterNN baseline, vs the exact GS (14.0)
 and the unprojected holomorphic-trap energy (21.0). Concatenates each K's original
 run with its same-day continuation (checkpoint-resumed, iteration count offset).
 """
+import argparse
 import json
 import matplotlib.pyplot as plt
 
@@ -20,25 +21,45 @@ RUNS = {
         "outputs/2026-07-16/09-32-11/optimization_results.log",
         "outputs/2026-07-16/11-45-06/optimization_results.log",
     ],
+    "K=12 (margin=9)": [
+        "outputs/2026-07-26/14-13-03/optimization_results.log",
+    ],
     "SlaterNN (no projection)": [
         "outputs/2026-07-19/11-15-58/optimization_results.log",
     ],
 }
 
-# fixed hue order per the palette (categorical slots 1,2,3,4)
+# fixed hue order per the palette (categorical slots 1,2,3,4,5)
 COLORS = {
     "K=3 (margin=0)": "#2a78d6",
     "K=4 (margin=1)": "#008300",
     "K=6 (margin=3)": "#e87ba4",
+    "K=12 (margin=9)": "#7a4fbe",
     "SlaterNN (no projection)": "#eda100",
 }
 
 EXACT_GS = 14.0
 TRAP_E = 21.0
 
+ap = argparse.ArgumentParser()
+ap.add_argument("--no-usetex", action="store_true")
+args = ap.parse_args()
+
+plt.rcParams.update({
+    "text.usetex": not args.no_usetex,
+    "font.family": "serif",
+    "font.serif": ["Computer Modern Roman"],
+    "font.size": 11,
+    "axes.labelsize": 12,
+    "legend.fontsize": 9,
+})
+
 fig, ax = plt.subplots(figsize=(8, 5.5), dpi=150)
 
 for label, paths in RUNS.items():
+    if not all(__import__("os").path.exists(p) for p in paths):
+        print(f"skip (missing): {label}")
+        continue
     iters_all, mean_all = [], []
     offset = 0
     for p in paths:
@@ -54,14 +75,13 @@ for label, paths in RUNS.items():
              solid_capstyle="round")
 
 ax.axhline(EXACT_GS, color="#52514e", linestyle="--", linewidth=1.5, zorder=0)
-ax.text(ax.get_xlim()[1] if False else 5, EXACT_GS + 0.3, "exact GS = 14.0",
-        color="#52514e", fontsize=9)
+ax.text(5, EXACT_GS + 0.3, "exact GS = 14.0", color="#52514e", fontsize=9)
 ax.axhline(TRAP_E, color="#8a8a86", linestyle=":", linewidth=1.5, zorder=0)
 ax.text(5, TRAP_E + 0.3, "holomorphic trap = 21.0", color="#8a8a86", fontsize=9)
 
 ax.set_xlabel("VMC iteration (cumulative, original + checkpoint-resumed continuation)")
 ax.set_ylabel("Validation energy")
-ax.set_title("N=6 QHO: L_z-projection margin ablation vs SlaterNN baseline")
+ax.set_title(r"$N=6$ QHO: $L_z$-projection margin ablation vs SlaterNN baseline")
 ax.legend(loc="upper right", frameon=False)
 ax.spines["top"].set_visible(False)
 ax.spines["right"].set_visible(False)

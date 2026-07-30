@@ -121,7 +121,7 @@ While the computational cost of a bosonic ansatz can scale favorably, encoding t
 
 Different methods have been proposed over the years to approach this, such as calculating the Slater determinant or the Pfaffian, or backflow transformations, initially proposed by R. Feynman \cite{feynman_energy_nodate}, and later realised as neural backflow \cite{pfau_ab_2020}.
 
-The Universal Approximation Theorem tells us that with a sufficiently large linear layer and a non-linear activation function we can approximate a function of arbitrary complexity, which sets the premise of this thesis. While Variational Monte Carlo pipeline with NQS training have been implemeted before. Certain antisymmetric functions have been only theortized before, and this thesis sets to implement one of those antisymmetric representations and rigorously test it's efficiency and general usefulness in practice. 
+The Universal Approximation Theorem tells us that with a sufficiently large linear layer and a non-linear activation function we can approximate a function of arbitrary complexity, which sets the premise of this thesis. While Variational Monte Carlo pipeline with NQS training have been implemeted before with Slater determinant, we seek for more efficient representation in terms of computational costs. Certain antisymmetric functions have been only theoreticized before, and this thesis sets to implement one of those antisymmetric representations and rigorously test it's efficiency and general usefulness in practice. 
 
 
 % epxlain motivation for making separation of parts 
@@ -173,7 +173,7 @@ A broader survey of neural-network wavefunction architectures across this landsc
 
 Literature on the topic has well documented the Fermionic Sign Problem, which appears in VMC setups as a consequence of the Pauli principle and constitutes a big computational challenge for VMC setups. However, in our case this is not a direct concern: we sample directly from $|\psi(x)|^2$ using an explicit variational ansatz, so the sign of $\psi$ is built into the ansatz itself, rather than inferred by the sampler against a bosonic reference. Hence we completely focus on the cost scaling of the antisymmetric part, not on sampling noise from sign cancellation.
 
-However, in our case we work with continuous space, meaning that arguments to our wavefunction are directly the coordinates of the particles, in first quantization, rather than occupation numbers on a fixed lattice or discrete basis set: there is no basis-set truncation error to worry about, the network parametrizes the wavefunction directly, which is exactly the Universal Approximation Theorem argument from the Introduction. It also means sampling must proceed via continuous-space Metropolis moves (Section~\ref{impl:sys}), rather than the discrete-occupation updates used in most lattice NQS work, and that the natural symmetries to exploit are continuous ones (e.g.\ rotations), not discrete lattice symmetries, a point we return to in Section~\ref{sec:results}.
+Moreover, in our case we work with continuous space, meaning that arguments to our wavefunction are directly the coordinates of the particles, in first quantization, rather than occupation numbers on a fixed lattice or discrete basis set: there is no basis-set truncation error to worry about, the network parametrizes the wavefunction directly, which is exactly the Universal Approximation Theorem argument from the Introduction. It also means sampling must proceed via continuous-space Metropolis moves (Section~\ref{impl:sys}), rather than the discrete-occupation updates used in most lattice NQS work, and that the natural symmetries to exploit are continuous ones (e.g.\ rotations), not discrete lattice symmetries, a point we return to in Section~\ref{sec:results}.
 \newpage
 
 \subsection{Variational Monte Carlo}
@@ -333,17 +333,15 @@ Nothing in this argument is specific to the isotropic harmonic trap. The trapped
 
 In this section we going to state the particular system we test the Ansatz with, and all the computational parameters involved. 
 
-First of all, we need a localised hamiltonian, and it's very convenietnt to use Quantum Harmonic Oscilator as the simplest and theoretically solvable system. 
-Then we need to initate continuous Hilbert space in two dimmensions (main focus of our thesis) and then 
-spawn the chains wich will sample the coordinates for our hamiltonian. Since Hilbert space is vast, we must be 
-smart about how we draw the coordinates for it, so we use Metropolis algorithm to only sample the most relevant points, where 
-Wavefunction is most probable to reside. Then we need to feed the coordinate to neural network Ansatz and 
-estimate th local energy with VMC, then weights of Neural Network optimized to minimise local energy, and the loop repeats 
-by proposing a new coordinates. 
+First of all, we need a localized Hamiltonian, and it's very convenient to use the Quantum Harmonic Oscillator as the simplest and theoretically solvable system. Then we need to initiate a continuous Hilbert space in two dimensions (the main focus of our thesis) and then spawn the chains which will sample the coordinates for our Hamiltonian. Since the Hilbert space is vast, we must be smart about how we draw the coordinates for it, so we use the Metropolis algorithm to only sample the most relevant points, where the wavefunction is most probable to reside. Then we need to feed the sampled coordinates to the neural network Ansatz and estimate the local energy with VMC. After the weights of the neural network are optimized to minimize the local energy, the loop repeats by proposing new coordinates. 
 
-Within this loop there are several classes in which our code is devided: \texttt{System} ,\texttt{FermiSets},\texttt{Trainer} and they are worth explaining in the folowing subsections. 
+Within this loop there are several classes in which our code is divided: \texttt{System} ,\texttt{FermiSets},\texttt{Trainer} and they are worth explaining in the following subsections. 
 
+Simulations for this work were performed using
+NetKet \cite{carleo_netket_2019, vicentini_netket_2022}. This software is built on top of JAX~\cite{bradbury_jax_2018}
+and Flax~\cite{heek_flax_2024}.
 
+The configuration file for the canonical benchmark experiment (\texttt{Experiment}\footnote{\url{https://github.com/IlyaYakushevskiy/FermiNQS/blob/main/configs/experiment/qho_fermisets_2d_3N_bench.yaml}}) and the ansatz implementation (\texttt{Ansatz}\footnote{\url{https://github.com/IlyaYakushevskiy/FermiNQS/blob/main/src/ansatz.py}}) are both available online.
 
 
 
@@ -367,11 +365,9 @@ a fixed kinetic-energy operator (\texttt{mass} sets $m$, kept at 1 throughout) p
 
 \texttt{N} and \texttt{dim} in Equation~\ref{eq:hamiltonian} are config keys directly; this thesis focuses on \texttt{dim=2}.
 
-The configuration file for the canonical benchmark experiment (\texttt{Experiment}\footnote{\url{https://github.com/IlyaYakushevskiy/FermiNQS/blob/main/configs/experiment/qho_fermisets_2d_3N_bench.yaml}}) and the ansatz implementation (\texttt{Ansatz}\footnote{\url{https://github.com/IlyaYakushevskiy/FermiNQS/blob/main/src/ansatz.py}}) are both available online.
 
-Simulations for this work were performed using
-NetKet \cite{carleo_netket_2019, vicentini_netket_2022}. This software is built on top of JAX~\cite{bradbury_jax_2018}
-and Flax~\cite{heek_flax_2024}.
+
+
 
 \subsection{Sampler and Trainer}
 
@@ -407,7 +403,7 @@ Two further optional training-time penalties (\texttt{trainer.holo\_penalty}/\te
 
 \subsection{Neural Network Ansatz}
 
-As introduced in Section~\ref{sec:nn_ansatz}, the FermiSets ansatz is built from a symmetric Deep Sets embedding $\xi$ and the antisymmetric signature encoder $\eta$; Figure~\ref{fig:fermisets_architecture} shows the resulting computational graph. Particle coordinates enter as a batch of shape $(\text{batch}, N, \texttt{dim})$, and for the $\texttt{dim}=2$ systems this thesis focuses on, each particle contributes a pair $(x_i,y_i)$, packed into $z_i = x_i + iy_i$. From these raw coordinates, $\eta(R)$, the regularised complex Vandermonde determinant of Equation~\ref{eq:eta}, is computed directly: it is the only antisymmetric ingredient in the entire network, everything else is built to be exchange-symmetric. In parallel, each particle's coordinates pass through the same shared encoder $\phi$, are summed over particles (the permutation-symmetric pooling step of the Deep Sets construction), and the pooled vector is passed through a decoder $\rho$ to give $\xi(R)$, a fixed-size, permutation-invariant summary of the whole configuration regardless of $N$.
+As introduced in Section~\ref{sec:nn_ansatz}, the FermiSets ansatz is built from a symmetric Deep Sets embedding $\xi$ and the antisymmetric signature encoder $\eta$; Figure~\ref{fig:fermisets_architecture} shows the resulting computational graph. Particle coordinates enter as a batch of shape $(\text{batch}, N, \texttt{dim})$, and for the $\texttt{dim}=2$ systems this thesis focuses on, each particle contributes a pair $(x_i,y_i)$, packed into $z_i = x_i + iy_i$. From these raw coordinates, $\eta(R)$, the regularised complex Vandermonde determinant of Equation~\ref{eq:eta}, is computed directly: it is the only antisymmetric part in the entire network, everything else is built to be exchange-symmetric. In parallel, each particle's coordinates pass through the same shared encoder $\phi$, are summed over particles (the permutation-symmetric pooling step of the Deep Sets construction), and the pooled vector is passed through a decoder $\rho$ to give $\xi(R)$, a fixed size, permutation-invariant summary of the whole configuration regardless of $N$.
 
 $\xi(R)$ is concatenated with $\mathrm{Re}(\eta)$ and $\mathrm{Im}(\eta)$ and fed into a single, generously wide layer, rather than several narrower stacked ones. This is a deliberate choice rather than a default: the Universal Approximation Theorem (Section~\ref{sec:intro}) already guarantees that one sufficiently wide layer with a non-linearity can approximate the function we need, and empirically, adding an extra stacked layer here made training roughly $30\times$ slower per iteration for no accuracy benefit (Appendix~\ref{app:ablations}). Within this VMC setup, shallow and wide outperforms deep in practice, and the theorem gives us license to prefer it.
 
@@ -423,8 +419,6 @@ The relevant parameters:
     \item \texttt{dim} is the dimension of the continuous Hilbert space.
     \item \texttt{hidden\_units} is the width of $\phi$ and $\rho$ (the encoder/decoder hidden layers).
     \item \texttt{out\_units} is the width of the final $\Psi$ head, split evenly between the log-modulus and phase channels.
-    \item \texttt{lz\_proj\_K} enables the $L_z$-sector projection described in Section~\ref{sec:results}: averaging the log-amplitude over $K$ rotated copies of the input. $K=0$ or $1$ disables it.
-    \item \texttt{pair\_hidden} enables an optional pairwise feature stream (Appendix~\ref{app:variants}), giving the symmetric part direct access to pairwise distances; 0 disables it.
     \item \texttt{pretrained\_path} loads a previous run's checkpoint to warm-start training, instead of a random initialization.
 \end{itemize}
 
@@ -434,6 +428,8 @@ The regularisation constant $a$ in the regularised signature encoder (Equation~\
 
 Note that \texttt{sampler.n\_chains}, \texttt{trainer.n\_samples}, and \texttt{trainer.chunk\_size} do not affect the ansatz's own input size: they control how many samples are evaluated in parallel (the batch dimension), not the feature dimension. The ansatz's actual input, per sample, is the flattened vector of all particle coordinates, of size $N \times \texttt{dim}$.
 
+
+
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\linewidth]{fermisets_architecture.pdf}
@@ -441,16 +437,6 @@ Note that \texttt{sampler.n\_chains}, \texttt{trainer.n\_samples}, and \texttt{t
     \label{fig:fermisets_architecture}
 \end{figure}
 
-\subsection{Diagnostic Tooling}
-\label{sec:diagnostics}
-
-Before any training run, a suite of structural sanity checks (\texttt{tests/stage0\_sanity.py}) verifies the ansatz itself is correct: exact antisymmetry under all pairwise swaps, evenness/oddness of $\eta$ under exchange, finite gradients and no NaNs near particle collisions, and the correct exact energies for known limits. Runs are only started once these pass.
-
-Two further tools are referenced in Section~\ref{sec:results}:
-\begin{itemize}
-    \item an overlap diagnostic (importance sampling from an $\mathcal{N}(0,1)$ proposal) measures $|\langle \psi_{NN} | \phi \rangle|^2$ between a trained checkpoint and a chosen analytic candidate state $\phi$, used to identify which state a run has actually converged to, beyond just its energy.
-    \item for the interacting dot, the reference energy \texttt{system.e\_ref} is obtained from an exact diagonalization in the oscillator basis (\texttt{tools/ed\_dot.py}), since no closed-form ground state exists once the Gaussian repulsion is switched on.
-\end{itemize}
 
 \newpage
 
@@ -465,7 +451,7 @@ Whenever we claim the network has fallen into the trap, we quantify it by the sq
     \mathcal{F}[\psi,\phi] = \frac{|\langle \psi | \phi \rangle|^2}{\langle \psi|\psi\rangle\,\langle \phi|\phi\rangle},
     \label{eq:fidelity}
 \end{equation}
-estimated by importance sampling from a Gaussian reference distribution (Section~\ref{sec:diagnostics}).
+estimated by importance sampling from a Gaussian reference distribution.
 
 \subsection{The trap}
 \label{sec:n3_trap}
@@ -485,11 +471,11 @@ We start from three spinless fermions in the isotropic harmonic trap of Section~
 In the two-dimensional trap the single-particle shells $n = n_x + n_y$ have degeneracy $n+1$, so three fermions fill the shells $n=0$ and $n=1$ exactly and close them, hence many-body ground state is unique, with energy $E_0 = \hbar\omega\,(1 + 2 + 2) = 5\,\hbar\omega$ and total angular momentum $L_z = 0$
 
 
-What training actually does is collected in Figure~\ref{fig:n3_trap}. From random initial parameters the energy falls steeply out of its initial value near $7.5\,\hbar\omega$ and settles shortly onto a plateau at $E = 6.0022 \pm 0.0026$ averaged over the last hundred iterations, and it does not leave that plateau again for the remainder of the run. Every diagnostic we have says this run is healthy. The variance of the local energy falls from $4.3$ to $0.024$, which is precisely the signature of an exact eigenstate, whose local energy is constant across configurations. The independently reseeded validation chain agrees with the training estimate inside its error bar, $6.0041 \pm 0.0028$ at iteration $350$, so the plateau is not an autocorrelation artefact of the training sampler; the acceptance rate holds at $0.87$ and $\hat R$ stays between $1.07$ and $1.10$ throughout. The trust-region rescaling of the stochastic-reconfiguration step never engages either, the bilinear form remaining in the range $8$ to $16$ against its threshold of $900$, so the optimiser is not being quietly truncated. By every criterion one would ordinarily apply to a variational run, this one has converged.
+What training actually does is collected in Figure~\ref{fig:n3_trap}. From random initial parameters the energy falls steeply out of its initial value near $7.5\,\hbar\omega$ and settles shortly onto a plateau at $E = 6.0022 \pm 0.0026$ averaged over the last hundred iterations, and it does not leave that plateau again for the remainder of the run. Every diagnostic we have says this run is healthy. The variance of the local energy falls from $4.3$ to $0.024$, which is precisely the signature of an exact eigenstate, whose local energy is constant across configurations. The independently reseeded validation chain agrees with the training estimate inside its error bar, $6.0041 \pm 0.0028$ at iteration $350$, so the plateau is not an autocorrelation artefact of the training sampler; the acceptance rate holds at $0.87$ and $\hat R$ stays between $1.07$ and $1.10$ throughout. The trust-region rescaling of the stochastic-reconfiguration step never engages either, the bilinear form remaining in the range $8$ to $16$ against its threshold of $900$, so the optimiser is not being quietly truncated. By every criterion one would ordinarily apply to a variational run, this run has converged.
 
-It has converged one full quantum above the ground state with value $6 = N(N+1)/2$ is the exact eigenvalue of the holomorphic Vandermonde state introduced in Section~\ref{sec:lazy_trap}, the state $\det[1, z, z^2]\,e^{-r^2/2}$ whose antisymmetric factor is the complex Vandermonde $\prod_{i<j}(z_i - z_j)$, which is to say the signature encoder $\eta$ itself. The fidelities confirm the identification without room for interpretation. Against the analytic ground state the trained wavefunction has $\mathcal{F} = 10^{-6}$, no ground-state content whatsoever, while against the holomorphic state it has $\mathcal{F} = 0.85$. 
+It has converged to the first excited state above the ground state with value $6 = N(N+1)/2$ is the exact eigenvalue of the holomorphic Vandermonde state introduced in Section~\ref{sec:lazy_trap}, the state $\det[1, z, z^2]\,e^{-r^2/2}$ whose antisymmetric factor is the complex Vandermonde $\prod_{i<j}(z_i - z_j)$, which is exactly our signature encoder $\eta$ itself. The overlap metrics confirm the identification. Against the analytic ground state the trained wavefunction has $\mathcal{F} = 10^{-6}$, no ground-state content whatsoever, while against the holomorphic state it has $\mathcal{F} = 0.85$. 
 
-This state has a name. It is the $\nu = 1$ Laughlin wavefunction $\Psi_{LL} = \prod_{i<j}(z_i - z_j)^q\,e^{-\sum|z_i|^2/2}$ at $q=1$, that is the filled lowest Landau level transplanted from a magnetic field into the harmonic trap. What makes it celebrated in that context is exactly what makes it a trap here: its antisymmetry is a pure product of pairwise differences, the sortable sign structure that the fixed factor $\eta$ supplies for free.
+This state is also known a in the field as Lowest Landau Level (LLL)  $\nu = 1$ Laughlin wavefunction $\Psi_{LL} = \prod_{i<j}(z_i - z_j)^q\,e^{-\sum|z_i|^2/2}$ at $q=1$, that is the filled lowest Landau level transplanted from a magnetic field into the harmonic trap. 
 
 \begin{figure}[H]
     \centering
@@ -499,8 +485,6 @@ This state has a name. It is the $\nu = 1$ Laughlin wavefunction $\Psi_{LL} = \p
 \end{figure}
 
 For the visualisation purposes we pin two of the three particles at fixed positions and sweep the third over the plane, which turns the six-dimensional wavefunction into a 2D image, we can see the nodal structure. \ref{fig:n3_trap_walk} The two analytic candidates are distinguishable in this slice. The ground state $\det[1,x,y]$ vanishes whenever the three particles are collinear, so its node is an extended straight line running through both pinned particles and cutting the plane into two lobes. The holomorphic state vanishes only where the swept particle sits exactly on one of the other two, so it fails to recognise this "nodal line". 
-
-This gives a hint for another metric, namely the phase. TO WRITE HERE (why its important)
 
 Already at initialisation NN carries $\mathcal{F}_{\rm holo} = 0.42$, so the random network starts closer to the trap than to anything else, and within fifty iterations it has moved onto the crescent and stayed there, while its overlap with the ground-state panel never lifts off zero at any point in the run. The one feature of the late panels that the pure trap does not have, the dip breaking the crescent into two bright patches, is the $15\%$ of the weight that has drifted into the antiholomorphic mirror interfering with the holomorphic part. The mirror is not drawn, because it cannot be: it is the exact complex conjugate of the holomorphic state, so the two have identical densities at every configuration and differ only in phase, which is the reason the chirality has to be tracked through $\langle L_z\rangle$ in Section~\ref{sec:mirror_flip} rather than by looking at pictures.
 
@@ -590,25 +574,27 @@ A larger network can bend partially the trap, but it cannot reach the ground sta
 \subsection{Supervised pretraining}
 \label{sec:pretraining}
 
-Definitive test confirming trainability/expressivity question is supervised pretraining. And running a bit ahead of time, we wish we did this experiments much earlier in our work. Instead of minimising the energy, we give the network the answer and ask it to imitate it: we fit $\log\psi_{\theta}$ to the analytic ground state by gradient descent on a supervised loss, drawing configurations from a broad Gaussian and matching both the log and the phase of the target,
+Definitive test confirming trainability/expressivity question is supervised pretraining. And running a bit ahead of time, we wish we did these experiments much earlier in our work. Instead of minimising the energy, we give the network the answer and ask it to imitate it: we fit $\log\psi_{\theta}$ to the analytic ground state by gradient descent on a supervised loss, drawing configurations from a broad Gaussian and matching both the log and the phase of the target,
 \begin{equation}
     \mathcal{L}(\theta) = \underbrace{\mathrm{Var}_x\!\big[\mathrm{Re}(\log\psi_\theta - \log\psi_{\mathrm{GS}})\big]}_{\text{amplitude}} \; + \; \underbrace{\big\langle 1 - \cos\mathrm{Im}(\log\psi_\theta - \log\psi_{\mathrm{GS}})\big\rangle}_{\text{phase}},
     \label{eq:supervised_loss}
 \end{equation}
-The target is the exact non-interacting ground state, which for the harmonic trap is a single Slater determinant of oscillator orbitals. If the ansatz can be driven onto the ground state this way the state is representable, and that direction is a constructive proof. The converse is weaker and has to be stated carefully, because the supervised loss is itself non-convex: a stalled fit is consistent with a genuine representability limit and with a failure of the supervised optimisation alike, and no finite experiment separates the two with certainty. What the test does deliver is an upper bound on what is achievable in practice, since it removes the Monte Carlo noise and the variational energy landscape and hands the network the answer outright. We therefore read a stalled fit as evidence rather than as proof, and strengthen it by closing the remaining optimisation explanations one at a time.
+The target is the exact non-interacting ground state, which for the harmonic trap is a single Slater determinant of oscillator orbitals. If the ansatz can be driven onto the ground state this way the state is representable, and that direction is a constructive proof. The converse is weaker proof (TODO: literature check with \cite{wu_supervised_2024} etc) What the test does deliver is an upper bound on what is achievable in practice, since it removes the Monte Carlo noise and the variational energy landscape and hands the network the answer outright. We therefore read a stalled fit as strong evidence against the representability and strengthen it by closing the remaining optimization explanations one at a time.
 
-For the closed-shell benchmark at $N=3$ this test comes out cleanly on the side of expressivity. The supervised loss falls, the phase term reaches $0.19$, and when we release ordinary VMC from the pretrained parameters the energy settles onto the true ground state at $E \approx 5.05$ with fidelity $\mathcal{F} \approx 0.99$ against the analytic determinant, instead of drifting back up to the trap at $E=6$. The network is therefore fully capable of representing the $N=3$ ground state; what it lacks from a real scenario is initialisation with any gradient that leads there. This is the concrete confirmation, promised in Section~\ref{sec:nn_ansatz}, that the trap at $N=3$ is a failure of trainability and not of expressivity, we thought to ourselves and moved to our other experiments on beating the trap. 
+For the closed-shell benchmark at $N=3$ this test converges well towards ground state. The supervised loss falls, the phase term reaches $0.19$, and when we release ordinary VMC from the pretrained parameters the energy settles onto the true ground state at $E \approx 5.05$ with fidelity $\mathcal{F} \approx 0.99$ against the analytic determinant, instead of drifting back up to the trap at $E=6$. The network is therefore fully capable of representing the $N=3$ ground state; what it lacks from a real scenario is initialisation with any gradient that leads there. 
 
-Later we found this verdict does not survive being carried to larger systems. We therefore ran the identical fit at every particle number we study. Two of them need care: $N=4$ and $N=5$ are open shells, so the ground state is degenerate and the aufbau filling picks one member of the manifold arbitrarily. We fit two distinct members at each, and at $N=4$ the genuinely distinct second choice is the $(1,1)$ orbital, since $(0,2)$ and $(2,0)$ are related by a rotation of the plane and $\eta$ is rotation covariant.
+Later we found the same does not hold for larger systems. We therefore ran the identical fit at every particle number we study. Two of them need care: $N=4$ and $N=5$ are open shells, so the ground state is degenerate and NN picks one orbital arbitrarily. We fit two distinct orbitals at each.
 
-The result is in Table~\ref{tab:supervised} and Figure~\ref{fig:supervised_assay}. Alongside the two loss terms we report the squared overlap $\mathcal{F}$ of each fitted state with its target, and it is the overlap that should be read: it is an observable, and it weights configurations by $|\psi|^2$, whereas the phase term weights every configuration's angle equally and so overstates the failure wherever the state carries little probability. Read that way the division is sharp. At $N=3$ the ansatz reproduces the ground state ($\mathcal{F} = 0.91$) and at $N=4$ it still captures most of it ($0.80$), at $N=5$ only a tenth remains ($0.11$), and from $N=6$ through $N=8$ the overlap is numerically zero. The failure is not an accident of how the fits were run, and we closed each way it could have been one. It is not the optimisation budget, since quadrupling it moves $N=4$ only from $0.71$ to $0.59$, nowhere near the $0.19$ that constitutes a fit at $N=3$, and leaves $N=6$ at $0.995$. It is not decoder capacity, since doubling the hidden width at $N=6$ changes nothing. It is not the random seed: three seeds give $1.000 \pm 0.009$ at $N=6$ and $0.478 \pm 0.052$ at $N=4$, so the ceiling reproduces to about one percent. It is not the arbitrary choice of degenerate member, since both members fail at both open shells. And it is not an artefact of studying the bare network rather than the projected one, which we take up below. What survives all of this is a single ordering. The overlap tracks how many shell-$2$ orbitals the target occupies, those being the ones whose nodal structure is not holomorphic, falling from $0.91$ with none of them to $0.80$, $0.11$ and $0$ as one, two and three are filled. The spread within $N=4$ reads the same way, since shell $2$ carries $m \in \{-2,0,+2\}$ and $(1,1) \propto xy$ is pure $|m| = 2$ while $(0,2) \propto y^2$ mixes in $m = 0$, and a holomorphic $\eta$ favours maximal $|m|$.
+
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\linewidth]{supervised_assay.png}
-    \caption{Supervised expressivity ablation across particle number (hidden $64$ unless noted, $25{,}000$ steps). Left: phase loss against supervised step; the dotted line at $1$ marks sign structure uncorrelated with the target. Right: the converged phase loss against $N$, with open circles marking the second member of the degenerate ground-state manifold at the open shells $N=4$ and $N=5$, and the cross marking $N=6$ at hidden $128$. The degradation is monotone in $N$, the member choice shifts the value but not the trend, and width is not a lever.}
+    \caption{Supervised expressivity ablation across particle number Left: phase loss against supervised step Right: the converged phase loss against $N$, open circles marking the second member of the degenerate ground-state at the open shells $N=4$ and $N=5$, and the cross marking $N=6$ at hidden $128$. The degradation is monotone in $N$, the member choice shifts the value but not the trend, and width is not a lever.}
     \label{fig:supervised_assay}
 \end{figure}
+
+The result is in Table~\ref{tab:supervised} and Figure~\ref{fig:supervised_assay}. Alongside the two loss terms we report the squared overlap $\mathcal{F}$ of each fitted state with its target, and it is the overlap that should be read: it is an observable, and it weights configurations by $|\psi|^2$, whereas the phase term weights every configuration's angle equally and so overstates the failure wherever the state carries little probability. Read that way the division is sharp. At $N=3$ the ansatz reproduces the ground state ($\mathcal{F} = 0.91$) and at $N=4$ it still captures most of it ($0.80$), at $N=5$ only a tenth remains ($0.11$), and from $N=6$ through $N=8$ the overlap is numerically zero. The failure is not an accident of how the fits were run, and we closed each way it could have been one. It is not the optimisation budget, since quadrupling it moves $N=4$ only from $0.71$ to $0.59$, nowhere near the $0.19$ that constitutes a fit at $N=3$, and leaves $N=6$ at $0.995$. It is not decoder capacity, since doubling the hidden width at $N=6$ changes nothing. It is not the random seed: three seeds give $1.000 \pm 0.009$ at $N=6$ and $0.478 \pm 0.052$ at $N=4$, so the ceiling reproduces to about one percent. It is not the arbitrary choice of degenerate member, since both members fail at both open shells. What survives all of this is a single ordering. The overlap tracks how many shell-$2$ orbitals the target occupies, those being the ones whose nodal structure is not holomorphic, falling from $0.91$ with none of them to $0.80$, $0.11$ and $0$ as one, two and three are filled. The spread within $N=4$ reads the same way, since shell $2$ carries $m \in \{-2,0,+2\}$ and $(1,1) \propto xy$ is pure $|m| = 2$ while $(0,2) \propto y^2$ mixes in $m = 0$, and a holomorphic $\eta$ favours maximal $|m|$.
 
 \begin{table}[H]
     \centering
@@ -630,12 +616,14 @@ The result is in Table~\ref{tab:supervised} and Figure~\ref{fig:supervised_assay
         $N=4$ $(1,1)$, $100{,}000$ steps & $(1,1)$ & $0.72$ & $0.53$ & $0.731$ \\
         $N=6$, $100{,}000$ steps     & all three & $1.19$ & $0.995$ & $0.0000$ \\
         $N=3$, $L_z$-projected $K=6$ & $-$       & $0.16$ & $0.07$ & $\mathbf{0.995}$ \\
-        $N=6$, $L_z$-projected $K=6$ & all three & $1.05$ & $0.99$ & $-$ \\
+        $N=6$, $L_z$-projected $K=6$ & all three & $1.05$ & $0.99$ & $ 0.0001$ \\
         \hline
     \end{tabular}
     \caption{Supervised fit of the FermiSets ansatz to the exact non-interacting ground state (Equation~\ref{eq:supervised_loss}, hidden $64$ and $25{,}000$ steps unless stated; loss terms are means over the last three logged points). The phase term runs from $0$, sign structure matched, to $1$, uncorrelated. $\mathcal{F} = |\langle\psi_{\mathrm{fit}}|\psi_{\mathrm{GS}}\rangle|^2$ is estimated by importance sampling from $\mathcal{N}(0,1)^{N\times 2}$ with $2\times10^5$ samples, bootstrap error below $0.005$ throughout. At the open shells $N=4$ and $N=5$ the ground state is degenerate and each is fitted against two distinct members. The $N=6$ projected overlap is absent because that run's checkpoint was lost to an out-of-memory failure in the post-fit evaluation, which does not affect its loss terms. We omit the VMC energy of the fitted states: the masked loss ignores the near-collision region that VMC samples in full, so those energies carry $\sigma^2$ between $10^3$ and $10^{11}$ and measure nothing.}
     \label{tab:supervised}
 \end{table}
+
+\newpage
 
 \subsection{Angular momentum in the 2D QHO}
 \label{sec:angular_momentum}
@@ -660,36 +648,6 @@ Within a shell of index $k$ the allowed magnetic numbers run in steps of two fro
 
 For a many-body state the total angular momentum is additive, $L_z^{\text{tot}} = \sum_i m_i$, and is conserved because $[\hat H, \hat L_z^{\text{tot}}] = 0$. Filling the closed shells for $N=3$ gives $L_z = 0$; the holomorphic trap of Section~\ref{sec:lazy_trap}, which fills the maximal-$m$ orbital of each shell, instead carries $L_z = \sum_{k=0}^{N-1} k = N(N-1)/2$. This difference in angular momentum between the ground state and the trap is exactly the handle the projection in Section~\ref{sec:lz_projection} uses.
 
-\subsubsection{Oscillation between the mirror states}
-\label{sec:mirror_flip}
-
-Since the two members of the trap are exactly degenerate, nothing in the energy distinguishes them, and the network is free to sit on either one or on any superposition of the two. To see which it actually picks we track the angular momentum $\langle L_z \rangle$ along a run, estimated as the expectation of the local operator $O_{L_z}(R) = -i \sum_k (x_k \partial_{y_k} - y_k \partial_{x_k}) \ln \psi(R)$ over samples drawn from $|\psi|^2$; a pure holomorphic state gives $\langle L_z \rangle = +N(N-1)/2 = +6$ and its antiholomorphic mirror gives $-6$. Figure~\ref{fig:n4_mirror_flip} follows a $256$-unit run that does leave the trap. From a nearly achiral random start the network breaks the mirror symmetry within the first fifty iterations, committing to the antiholomorphic branch ($\langle L_z \rangle$ swings sharply negative), and it is precisely while it is committing that the energy detaches from $E = 10$ and slides down toward $E \approx 8.7$. Which branch is chosen is a matter of the random seed: the trapped $64$-unit seed of Section~\ref{sec:brute_force} broke the opposite way, locking onto the holomorphic branch at $\langle L_z \rangle = +5.5$ and never leaving $E = 10$. The two bottom panels of Figure~\ref{fig:n4_mirror_flip} show the resulting single-particle densities, one particle swept across the plane with the other three pinned: the petals of the two committed states are thrown to opposite sides, the same four-lobe pattern reflected into its mirror image.
-
-The route between the two branches is what produces the spikes seen throughout the $N=4$ runs. Because the network is a continuous function of its parameters, swapping chirality forces the nodal surface to rotate through intermediate configurations where the nodes sweep across regions of high particle density. There $\psi$ is small and sharply curved exactly where the samples live, so the local kinetic energy momentarily blows up and the energy spikes upward before the state relaxes into the other branch and descent resumes, giving the discrete staircase step. The tendency of the spikes to grow over training has a geometric cause of the same origin: near a degenerate pair the stochastic-reconfiguration matrix develops a near-zero mode along the direction connecting the two states, so the natural-gradient update is ill-conditioned along that mode and its steps there enlarge as training proceeds. The closed-shell $N=3$ system is not immune to this chiral pair, since the holomorphic and antiholomorphic states exist for every $N$; what makes $N=3$ tractable is not the absence of the mirror but the existence of an unambiguous $L_z = 0$ target that the symmetry projection of Section~\ref{sec:lz_projection} can single out.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1\linewidth]{n4_mirror_flip.png}
-    \caption{Symmetry breaking between the degenerate mirror states for $N=4$. Top: energy (blue, left axis) and angular momentum $\langle L_z \rangle$ (orange, right axis) against training iteration for a $256$-unit run. The network leaves the trap at $E = 10$ only by committing to one chirality; here $\langle L_z \rangle$ breaks negative (antiholomorphic) as the energy descends to $E \approx 8.7$. Bottom: the real part of the wavefunction with one particle swept over the plane and three fixed on a triangle (white stars), for a holomorphic-committed seed ($\langle L_z \rangle = +5.5$, left) and the antiholomorphic branch of the escaping run ($\langle L_z \rangle = -4.6$, right). The petals of the two mirror partners lie on opposite arrangements.}
-    \label{fig:n4_mirror_flip}
-\end{figure}
-
-\subsubsection{The trap is not an artefact of rotational symmetry}
-\label{sec:aniso}
-
-Everything so far has been shown in the isotropic harmonic trap, which is rotationally symmetric, and one might reasonably worry that the whole phenomenon is a peculiarity of that symmetry. The holomorphic and antiholomorphic states are degenerate precisely because the trap does not distinguish the two senses of rotation, and perhaps it is only this accidental degeneracy that the network is exploiting. To rule this out we repeat the experiment on the anisotropic trap of Section~\ref{impl:sys}, $V = \tfrac{1}{2}\sum_i (x_i^2 + \omega_y^2 y_i^2)$ with $\omega_y = 1.5$, which breaks rotational symmetry outright: now $[\hat H, \hat L_z] \neq 0$, angular momentum is no longer a good quantum number, and the mirror degeneracy is gone entirely. The trap stays exactly solvable, since the two Cartesian directions still separate, and the choice $\omega_y = 1.5$ keeps the Fermi level non-degenerate, giving an exact ground-state energy $E_0 = 6.25$ for $N=3$.
-
-The trap survives the loss of symmetry, and it survives it in a sharper form than one might have guessed. From a random start the network converges to $E = 6.75$, an eigenstate two levels above the ground state, and an overlap measurement identifies it without ambiguity: the trained state has fidelity $\mathcal{F} = 0.999$ against $\det\{1, x, x^2\}$ times the anisotropic Gaussian envelope, with essentially no weight on the true ground state $\det\{1, x, y\}$. This is once again a state whose antisymmetric part is a pure product of pairwise coordinate differences, only now assembled from the real coordinate $x$ rather than the complex $z$: it is the one-dimensional Vandermonde $\prod_{i<j}(x_i - x_j)$ embedded in the plane. It is exactly the sortable sign structure of Section~\ref{sec:lazy_trap}, and the network reaches it for exactly the same reason as before, namely that it is the antisymmetry the fixed factor $\eta$ can supply most cheaply. What changes between the two traps is only which pairwise-product eigenstate happens to be lowest; what does not change is the ansatz's preference for pairwise-product sign structures over the genuinely two-dimensional, signed-area sign structure that the true ground state requires. The pathology is therefore a property of the parity-graded construction and its optimisation, not of the rotational symmetry of any one trap.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.8\linewidth]{aniso_n3_convergence.png}
-    \caption{$N=3$ in the anisotropic trap ($\omega_y = 1.5$, exact ground state $E_0 = 6.25$). From a random start the network converges to $E = 6.75$, the first excited state $\det\{1,x,x^2\}\times\text{envelope}$ (fidelity $0.999$), and not the ground state. With rotational symmetry broken there is no mirror degeneracy left to blame, yet the trap persists as a real-Vandermonde sortable state, confirming that it is the pairwise-product sign structure, not the symmetry of the trap, that the ansatz is drawn to.}
-    \label{fig:aniso_n3}
-\end{figure}
-
-Because rotational symmetry is broken, the projection remedy of the next section cannot be applied to this trap directly: there is no conserved $L_z$ left to project onto. The anisotropic experiment is diagnostic in purpose, establishing that the trap is generic rather than symmetry-specific; the isotropic closed-shell system, where a clean $L_z = 0$ target does exist, remains our benchmark for the remedy itself.
-
 \subsection{Escaping the trap by symmetry projection}
 \label{sec:lz_projection}
 
@@ -700,7 +658,7 @@ Because the isotropic trap satisfies $[\hat H, \hat L_z] = 0$, its eigenstates c
     \xi(R) \;\longmapsto\; \frac{1}{K}\sum_{k=0}^{K-1} \xi\big(R_{\theta_k}\big), \qquad \theta_k = \frac{2\pi k}{K},
     \label{eq:lz_projection}
 \end{equation}
-applied to the coordinates fed into the symmetric branch. This is not an average of the two trap states; it is an angular-momentum sieve. A component of angular momentum $m$ picks up a phase $e^{im\theta}$ under rotation, so the $K$-fold average annihilates every component except those with $L_z \equiv 0 \pmod K$: the ground state ($m=0$) survives, and the trap pair ($m = \pm N(N-1)/2$) is removed whenever $N(N-1)/2 \not\equiv 0 \pmod K$. The cost is a factor of $K$ in the forward pass, so the ansatz scales as $O(K\,N^2)$ against the $O(N^3)$ of a Slater determinant.
+applied to the coordinates fed into the symmetric branch. A component of angular momentum $m$ picks up a phase $e^{im\theta}$ under rotation, so the $K$-fold average annihilates every component except those with $L_z \equiv 0 \pmod K$: the ground state ($m=0$) survives, and the trap pair ($m = \pm N(N-1)/2$) is removed whenever $N(N-1)/2 \not\equiv 0 \pmod K$. The cost is a factor of $K$ in the forward pass, so the ansatz scales as $O(K\,N^2)$ against the $O(N^3)$ of a Slater determinant.
 
 At $N=3$ this works, and it is our first success. The trap sits at $L_z = \pm 3$, so any $K$ not dividing $3$ removes it. From a random start the projected network converges to the true ground state, $E = 5.015 \pm 0.004$ against the exact $E_0 = 5$, with fidelity $\mathcal{F} = 0.9988$ against the analytic ground-state determinant (Figure~\ref{fig:lz_n3_qho}). Evaluated without the projection, the very same trained parameters give $E = 7.41$ and negligible ground-state weight, confirming that it is the projection, not the network alone, that selects the physical state. The same construction solves the interacting quantum dot of Section~\ref{impl:sys}: with $K=6$ the network reaches $E = 6.212$ against the exact-diagonalisation value $6.2107$, a relative error of $0.09\%$ (Figure~\ref{fig:lz_n3_dot}), whereas the unprojected run parks on the interaction-deformed trap at $E = 7.02$.
 
@@ -715,8 +673,8 @@ Read against the trap, the effect of the projection is best seen in the same sli
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=1\linewidth]{n3_lz_density_walk.png}
-    \caption{The same construction as Figure~\ref{fig:n3_trap_walk} for the $L_z$-projected run ($K=6$, otherwise identical seed and hyperparameters). The projection empties the initial state of both candidates, and training then walks onto the true ground state, reproducing its collinearity node, rather than onto the crescent of the trap. Overlaps with the holomorphic and antiholomorphic states stay at $10^{-5}$ for the whole run.}
+    \includegraphics[width=0.75\linewidth]{n3_lz_density_walk.png}
+    \caption{The same construction as Figure~\ref{fig:n3_trap_walk} for the $L_z$-projected run }
     \label{fig:lz_n3_walk}
 \end{figure}
 
@@ -727,46 +685,81 @@ Read against the trap, the effect of the projection is best seen in the same sli
     \label{fig:lz_n3_dot}
 \end{figure}
 
-\subsection{Why the escape does not scale: N=6}
+\newpage
+
+\subsubsection{Why the escape does not scale: N=6}
 \label{sec:n6_wall}
 
 The projection removes the trap, but it does not make the ansatz a general-purpose ground-state solver. At $N=6$ (the next closed shell, $E_0 = 14$, trap at $E = 21$) the projected network no longer reaches the ground state. Across $K = 3, 4, 6$ it descends below the trap but stalls at $E \approx 16$ to $17$, well short of $14$, and slower than the Slater-determinant baseline; at $N=10$ the stochastic-reconfiguration update diverges outright.
 
+
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.9\linewidth]{n6_margin_ablation_vs_slater.png}
-    \caption{$N=6$ QHO ($E_0 = 14$, trap at $E=21$). Projected FermiSets at $K=3,4,6$ all descend below the trap but stall together in the $E \approx 16$ to $17$ band, essentially independently of the projection order, while the Slater-determinant baseline of Section~\ref{sec:slaternn} drops cleanly to the ground state within a few tens of iterations. That the three projection orders track one another, even though $K=3$ leaves the trap inside the allowed sector while $K=6$ removes it, is the first sign that the plateau is not the trap but a same-sector obstruction the projection cannot reach.}
+    \caption{$N=6$ QHO ($E_0 = 14$, trap at $E=21$). Projected FermiSets at $K=3,4,6$ all descend below the trap but stall together in the $E \approx 16$ to $17$ band,  independently of the projection order, while the Slater-determinant baseline of Section~\ref{sec:slaternn} drops cleanly to the ground state within a few tens of iterations. That the three projection orders track one another, even though $K=3$ leaves the trap inside the allowed sector while $K=6$ removes it, is the first sign that the plateau is not the trap but a same-sector obstruction the projection cannot reach.}
     \label{fig:n6_margin}
 \end{figure}
 
-The important point is that this is a different failure from the trap, and the projection is powerless against it. The plateau energy is instructive: there is no eigenstate at $E \approx 17$ in the $L_z = 0$ sector at all. Counting the non-interacting many-body states of $N=6$ with total $L_z = 0$ gives the ladder in Table~\ref{tab:n6_spectrum}: the ground state is isolated at $E = 14$, and the first excited states appear only at $E = 16$ and $E = 18$, with the number of states exploding as the energy rises. A stable estimate at $17.4$ is therefore not a single eigenstate but a superposition sitting between the $E=16$ and $E=18$ manifolds, which is consistent with the modest ground-state overlap measured on the plateau.
+The important point is that this is a different failure from the trap, and the projection is powerless against it. We must note there is no eigenstate at $E \approx 17$ in the $L_z = 0$ sector at all. Counting the non-interacting many-body states of $N=6$ with total $L_z = 0$ gives the ladder in Table below: the ground state is isolated at $E = 14$, and the first excited states appear only at $E = 16$ and $E = 18$, with the number of states exploding as the energy rises. A stable estimate at $17.4$ is therefore not a single eigenstate but a superposition sitting between the $E=16$ and $E=18$ eigenstates, which is consistent with the modest ground-state overlap measured on the plateau.
 
-\begin{table}[H]
-    \centering
-    \begin{tabular}{r r r}
-        \hline
-        $E$ & states with $L_z = 0$ & note \\
-        \hline
-        14 & 1   & ground state (isolated) \\
-        15 & 0   & no $L_z=0$ state exists \\
-        16 & 9   & first excited manifold \\
-        17 & 0   & no $L_z=0$ state exists \\
-        18 & 64  & second excited manifold \\
-        20 & 255 & \\
-        \hline
-    \end{tabular}
-    \caption{Low-lying non-interacting spectrum of $N=6$ in the $L_z = 0$ sector. Odd energies contain no $L_z=0$ state because a single shell hop flips the magnetic-quantum-number parity. The ground state is an isolated needle below an exponentially growing manifold of excited states.}
-    \label{tab:n6_spectrum}
+\begin{table}[t]
+  \centering
+  \caption{Low-lying non-interacting spectrum of $N=6$ in the
+  $L_z = 0$ sector. Odd energies contain no $L_z = 0$ state, since a
+  single shell hop flips the parity of the magnetic quantum number and
+  $L_z \equiv E - N \pmod 2$; those levels are omitted. The ground
+  state is an isolated needle beneath an exponentially growing set of
+  excited levels. Energies in units of $\hbar\omega$.}
+  \label{tab:n6_lz0_counting}
+  \begin{tabular}{ccl}
+    \toprule
+    $E$ & $\#\{L_z = 0\}$ & \\
+    \midrule
+    14 & 1   & ground state, isolated \\
+    16 & 9   & first excited level \\
+    18 & 64  & second excited level \\
+    20 & 255 & \\
+    \bottomrule
+  \end{tabular}
 \end{table}
 
 These excited states share the ground state's angular momentum, $L_z = 0$, so they lie in the exact sector the projection is designed to keep. No choice of $K$ can remove them: symmetry projection separates states of different symmetry, and here the obstruction has the same symmetry as the target. This is confirmed directly by the projection itself. At $N=6$ the trap sits at $L_z = \pm 15$; the choice $K=3$ leaves it untouched (since $15 \equiv 0 \pmod 3$) while $K=6$ removes it, yet both plateau at the same $E \approx 16$ to $17$. If the plateau were the trap, removing it would change where the network lands. It does not, because the plateau is built from same-sector excited states, not from the trap.
 
 That this is a wall of representability, and not of optimisation budget or network width, is what the supervised assay of Section~\ref{sec:pretraining} already showed: at $N=6$ the amplitude term improves while the phase term never leaves $1$, at both $64$ and $128$ hidden units, and it is the only system in the study where the fit does not move at all (Figure~\ref{fig:supervised_assay}). Doubling the width changes nothing, because width buys decoder capacity and the missing ingredient is not decoder capacity: it is nodal freedom.
 
-One objection has to be closed before this can be called a limitation of the method rather than of a network we never use. Every fit quoted so far is of the bare ansatz, whereas the runs of Section~\ref{sec:lz_projection} evaluate the projected function $P_K\psi$, and the two are not interchangeable: the trained $N=3$ parameters give $\mathcal{F} = 0.9988$ against the ground state when the projection is applied and $E = 7.41$ with almost no ground-state weight when it is not, so the projection of a network can be the ground state while the network itself is nowhere near it. We therefore repeated the fit on the projected ansatz. At $N=3$ it does not merely reproduce the earlier result but improves on it, reaching a phase loss of $0.07$ against $0.19$ for the bare network and an energy of $5.051 \pm 0.009$ against the exact $5$, which is what one should expect, since the sieve removes in advance the wrong-sector content the fit would otherwise have to cancel by hand. At $N=6$ the projected fit is pinned at $0.99$, indistinguishable from the bare one. The projection is therefore not the thing that fails here. It decides which sector the search occupies, it buys no nodal freedom, and nodal freedom is what is missing. The true $N=6$ ground state fills the third shell, whose orbitals $(0,2), (1,1), (2,0)$ have a nodal structure that is not holomorphic, while the entire antisymmetric content of the ansatz is carried by the fixed holomorphic factor $\eta$, whose nodes the trainable symmetric part cannot move. The network therefore cannot place the non-holomorphic nodes the ground state requires, and no amount of optimisation or width can supply what the architecture does not contain. Architectural attempts to give the ansatz that missing freedom, a pairwise-distance feature stream and a trainable equivariant deformation of the signature encoder, do not lift the ceiling either; we report them in Appendix~\ref{app:variants}, as they change none of the conclusions here.
+
+\subsubsection{Oscillation between the mirror states}
+\label{sec:mirror_flip}
+
+Now this section will briefly attempt to explain what happened in the runs where huge networks were lucky to escape the trap. We made a short movie to see how the function evolves over time and seen the network oscillating the "petals" of wavefunction projection between to chiral modes, which causes the surprising spikes in local energy estimation. Depending on regularization of  the network with learning rate, diagonal shift or  the oscillations decrease in amplitude with stronger regularization, but so does the slope. Empirically, those oscillations are increasing in amplitude and eventually cause numerical blow-up of the variational state. On the \ref{fig:n4_mirror_flip} you can see such oscillations being damped by learning rate scheduler.
+
+Since the two members of the trap are exactly degenerate, nothing in the energy distinguishes them, and the network is free to sit on either one or on any superposition of the two. To see which it actually picks we track the angular momentum $\langle L_z \rangle$ along a run, estimated as the expectation of the local operator $O_{L_z}(R) = -i \sum_k (x_k \partial_{y_k} - y_k \partial_{x_k}) \ln \psi(R)$ over samples drawn from $|\psi|^2$; a pure holomorphic state gives $\langle L_z \rangle = +N(N-1)/2 = +6$ and its antiholomorphic mirror gives $-6$. Figure~\ref{fig:n4_mirror_flip} follows a $256$-unit run that does leave the trap. From a nearly achiral random start the network breaks the mirror symmetry within the first fifty iterations, committing to the antiholomorphic branch ($\langle L_z \rangle$ swings sharply negative), and it is precisely while it is committing that the energy detaches from $E = 10$ and slides down toward $E \approx 8.7$. Which branch is chosen is a matter of the random seed: the trapped $64$-unit seed of Section~\ref{sec:brute_force} broke the opposite way, locking onto the holomorphic branch at $\langle L_z \rangle = +5.5$ and never leaving $E = 10$. The two bottom panels of Figure~\ref{fig:n4_mirror_flip} show the resulting single-particle densities, one particle swept across the plane with the other three pinned: the petals of the two committed states are thrown to opposite sides, the same four-lobe pattern reflected into its mirror image.
+
+The route between the two branches is what produces the spikes seen throughout the $N=4$ runs. Because the network is a continuous function of its parameters, swapping chirality forces the nodal surface to rotate through intermediate configurations where the nodes sweep across regions of high particle density. There $\psi$ is small and sharply curved exactly where the samples live, so the local kinetic energy momentarily blows up and the energy spikes upward before the state relaxes into the other branch and descent resumes, giving the discrete staircase step. The tendency of the spikes to grow over training has a geometric cause of the same origin: near a degenerate pair the stochastic-reconfiguration matrix develops a near-zero mode along the direction connecting the two states, so the natural-gradient update is ill-conditioned along that mode and its steps there enlarge as training proceeds. The closed-shell $N=3$ system is not immune to this chiral pair, since the holomorphic and antiholomorphic states exist for every $N$; what makes $N=3$ tractable is not the absence of the mirror but the existence of an unambiguous $L_z = 0$ target that the symmetry projection of Section~\ref{sec:lz_projection} can single out.
+
+\raggedbottom
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{n4_mirror_flip.png}
+    \caption{Symmetry breaking between the degenerate mirror states for $N=4$. Top: energy (blue, left axis) and angular momentum $\langle L_z \rangle$ (orange, right axis) against training iteration for a $256$-unit run.}
+    \label{fig:n4_mirror_flip}
+\end{figure}
+
+\newpage
+
+\subsubsection{The trap is not an artefact of rotational symmetry}
+\label{sec:aniso}
+
+Everything so far has been shown in the isotropic harmonic trap, which is rotationally symmetric, and one might reasonably worry that the whole phenomenon is a peculiarity of that symmetry. The holomorphic and antiholomorphic states are degenerate precisely because the trap does not distinguish the two senses of rotation, and perhaps it is only this accidental degeneracy that the network is exploiting. To rule this out we repeat the experiment on the anisotropic trap of Section~\ref{impl:sys}, $V = \tfrac{1}{2}\sum_i (x_i^2 + \omega_y^2 y_i^2)$ with $\omega_y = 1.5$, which breaks rotational symmetry outright: now $[\hat H, \hat L_z] \neq 0$, angular momentum is no longer a good quantum number, and the mirror degeneracy is gone entirely. The trap stays exactly solvable, since the two Cartesian directions still separate, and the choice $\omega_y = 1.5$ keeps the Fermi level non-degenerate, giving an exact ground-state energy $E_0 = 6.25$ for $N=3$.
+
+The trap survives the loss of symmetry, and it survives it in a sharper form than one might have guessed. From a random start the network converges to $E = 6.75$, an eigenstate two levels above the ground state, and an overlap measurement identifies it without ambiguity: the trained state has fidelity $\mathcal{F} = 0.999$ against $\det\{1, x, x^2\}$ times the anisotropic Gaussian envelope, with essentially no weight on the true ground state $\det\{1, x, y\}$. This is once again a state whose antisymmetric part is a pure product of pairwise coordinate differences, only now assembled from the real coordinate $x$ rather than the complex $z$: it is the one-dimensional Vandermonde $\prod_{i<j}(x_i - x_j)$ embedded in the plane. It is exactly the sortable sign structure of Section~\ref{sec:lazy_trap}, and the network reaches it for exactly the same reason as before, namely that it is the antisymmetry the fixed factor $\eta$ can supply most cheaply. What changes between the two traps is only which pairwise-product eigenstate happens to be lowest; what does not change is the ansatz's preference for pairwise-product sign structures over the genuinely two-dimensional, signed-area sign structure that the true ground state requires. The pathology is therefore a property of the parity-graded construction and its optimisation, not of the rotational symmetry of any one trap.
+
+Because rotational symmetry is broken, the projection remedy of the next section cannot be applied to this trap directly: there is no conserved $L_z$ left to project onto. 
 
 
-This exposes the structural cost of replacing a learned determinant with a fixed antisymmetric factor. In the Slater baseline the nodal surface is learned in full, so the optimiser can reshape it freely and slide through the excited manifold to the ground state. In FermiSets the antisymmetry is carried entirely by the frozen holomorphic factor $\eta$, so the sign structure is anchored to that of the Vandermonde determinant. The excited states with near-holomorphic character then sit in the ansatz's easy basin, and the frozen $\eta$ keeps biasing the optimiser toward that sign structure rather than toward the genuinely two-dimensional nodal surface of the true ground state. At $N=3$ this bias costs only the single obstacle of the trap, which the projection removes; at $N=6$ the same bias persists after the trap is gone, and no amount of projection addresses it. It is this trade, the $O(N^2)$ fixed factor against the $O(N^3)$ learned determinant, that ultimately limits the ansatz.
+
+
 
 \subsection{Comparison with a learned determinant}
 \label{sec:slater_comparison}
@@ -788,38 +781,6 @@ The trap and the wall are both properties of how FermiSets builds antisymmetry, 
     \label{tab:slater_vs_fermisets}
 \end{table}
 
-The comparison is blunt: on every system tested, SlaterNN reaches the ground state faster and more accurately than FermiSets, and at $N=6$ it succeeds where FermiSets, at any projection order, does not. Two of these results should not be oversold. For the non-interacting harmonic trap the exact ground state is a single Slater determinant by construction, so SlaterNN has no representability gap there at all, and that it wins on the QHO is almost tautological. The informative comparison is the interacting quantum dot, whose exact ground state is genuinely correlated and is not a single determinant. There SlaterNN still reaches $0.85\%$ with nothing but bare orbitals and the shared envelope, comfortably better than the $6.2\%$ that projected FermiSets manages on the same system, so even where a single determinant is not exact it remains the stronger starting point. The reason is the one the wall exposed: a learned determinant places its own nodes, whereas FermiSets inherits a fixed nodal prior from $\eta$, and it is precisely that prior which fails to generalise beyond the smallest closed shell.
-
-\subsection{Computational cost and the crossover with the determinant}
-\label{sec:complexity}
-
-The entire motivation for a fixed signature encoder is cost. Evaluating a Slater determinant through an LU or Cholesky factorisation is $O(N^3)$ in the particle number, whereas the Vandermonde product and the symmetric network of FermiSets are $O(N^2)$, and the $L_z$ projection multiplies this by the constant projection order $K$, giving $O(K N^2)$. Two questions decide whether this asymptotic advantage is real in practice: whether $K$ must grow with $N$, which would erode it, and at what particle number the $O(K N^2)$ scaling actually overtakes $O(N^3)$ given the very different constant prefactors of a wide neural network and a small dense factorisation.
-
-On the first question, the projection order needed to remove the trap does not grow with $N$. The trap sits at $L_z = N(N-1)/2$, and a mod-$K$ projection removes it whenever this is not a multiple of $K$; sweeping the closed-shell sequence up to $N = 210$, a fixed margin is always reached by some $K$ in a bounded range of roughly $4$ to $16$, with no upward trend, so $K$ is $O(1)$ in $N$. The one caveat is that a single fixed $K$ is not safe for all $N$, since $K=6$ for instance fails to remove the trap at $N = 21, 28, 36, \dots$, so the order must be chosen per $N$ from the cheap modular condition rather than hardcoded once.
-
-On the second question, we time a forward pass of both ansätze directly, with $K$ chosen per $N$ as above. Table~\ref{tab:timing} shows the outcome. At the particle numbers this thesis actually trains, $N \le 30$, there is no crossover at all: the FermiSets forward pass is $15$ to $65$ times slower than a bare determinant, because both the $O(N^2)$ product and the $O(N^3)$ factorisation are dominated by the constant cost of the wide network, evaluated $2K$ times per sample, while batched linear algebra on tiny $N \times N$ matrices is effectively free on a GPU regardless of its $N^3$ scaling. The asymptotic advantage only becomes visible once $N$ is large enough for $N^3$ to matter, which happens between $N = 50$ and $N = 100$: at $N = 100$ FermiSets is already about three times faster than the determinant, and about six times faster by $N = 200$.
-
-\begin{table}[H]
-    \centering
-    \begin{tabular}{r r r r}
-        \hline
-        $N$ & $K$ & FermiSets (ms) & determinant (ms) \\
-        \hline
-        3   & 6 & $1.21$  & $0.085$ \\
-        6   & 6 & $5.58$  & $0.111$ \\
-        10  & 4 & $5.58$  & $0.139$ \\
-        30  & 6 & $6.94$  & $0.994$ \\
-        50  & 4 & $8.09$  & $3.76$  \\
-        100 & 7 & $20.2$  & $62.6$  \\
-        200 & 8 & $64.0$  & $408$   \\
-        \hline
-    \end{tabular}
-    \caption{Forward-pass wall-clock time per evaluation (batch $4096$, \texttt{hidden\_units}$=64$), FermiSets with per-$N$ projection order $K$ against a bare \texttt{slogdet}. The crossover sits between $N=50$ and $N=100$: below it the determinant is faster because both costs are dominated by the network width, above it the $O(K N^2)$ scaling wins. The determinant column is the factorisation cost alone, with no orbital network, so a fully trained Slater ansatz would add its own constant overhead and push the crossover somewhat later.}
-    \label{tab:timing}
-\end{table}
-
-The honest reading is therefore twofold, and both halves matter. The $O(K N^2)$ against $O(N^3)$ argument is real, and we confirm it empirically, but only at $N \sim 100$ and beyond, which is well outside the range this thesis, or the trap and wall of the previous sections, can actually train. At the system sizes where FermiSets can be trained at all, its cost is set by the network width and the projection factor rather than by the antisymmetric part, and there it is the more expensive of the two, not the cheaper. The efficiency the construction was designed to deliver is thus genuine asymptotically and absent in practice at the scales it currently reaches.
-
 
 
 \newpage
@@ -832,17 +793,60 @@ The two ansätze we have compared differ in one fundamental respect, namely how 
 
 In SlaterNN the antisymmetry is enforced through a determinant $\det[\phi_i(r_j)]$ whose single-particle orbitals $\phi_i$ are themselves learned functions. The entire nodal surface, the set where $\psi = 0$ that fixes the sign structure of the wavefunction, is therefore a free function of the network parameters. The optimiser is tied to no particular sign structure in advance and can continuously reshape the nodes toward whatever the true ground state requires, which is why SlaterNN reaches the ground state on every system we tested and never falls into a chiral trap.
 
-FermiSets, by contrast, factorises the antisymmetry into a fixed prefactor, the holomorphic Vandermonde determinant $\eta = \prod_{i<j}(z_i - z_j)$, and leaves the network only a symmetric modulation $g(\xi)$ multiplying it, together with the discrete combination $\Psi_0(+\eta) - \Psi_0(-\eta)$ that supplies what limited flexibility the sign structure has. Because the antisymmetry is anchored to this holomorphic factor from the outset, the ansatz is biased toward nodal surfaces that resemble the Vandermonde's, that is, toward pairwise, sortable sign changes, rather than the genuinely two-dimensional, signed-area sign structure that the true ground state generally requires. This bias is the common root of the two obstacles we documented. It is what makes the holomorphic Laughlin state an almost inescapable attractor from a random start, the lazy-state trap of Sections~\ref{sec:lazy_trap} and~\ref{sec:brute_force}, and it is also what caps the ansatz at $N=6$, where the supervised test of Section~\ref{sec:n6_wall} showed the ground-state sign structure to be not merely hard to reach but genuinely unrepresentable by the fixed factor.
+As a contrast, FermiSets has a rigid nodal set, unlearnable directly by the network. Across every system studied, the FermiSets ansatz fails from a random
+start in a single, reproducible way: it converges to the state whose
+antisymmetry its fixed factor $\eta$ can supply most cheaply. At $N=3$
+and $N=4$ in the isotropic trap this is the holomorphic Vandermonde
+state at $E = N(N+1)/2$, identified against the analytic reference at
+$\mathcal{F} \approx 0.85$ and $0.95$; in the anisotropic trap, where
+no rotational degeneracy exists, it is the real one dimensional
+Vandermonde $\det\{1,x,x^2\}$ at $\mathcal{F} = 0.999$. The trap is
+therefore not an artefact of rotational symmetry, nor of any one
+Hamiltonian, but of the pairwise product sign structure the
+construction imposes. It is also not a tuning artefact: across $76$
+from-scratch runs at widths from $16$ to $512$ units, capacity bends
+the trap without breaking it, the best stable energy at $N=4$
+remaining $E \approx 8.36$ against $E_0 = 8$, while the larger widths
+destabilise the stochastic-reconfiguration update rather than
+improving on it.
 
-The two are distinct failures and it is worth keeping them apart. The trap is a failure of trainability, since pretraining confirmed that at $N=3$ the ansatz can represent the ground state perfectly well and simply is not led there by the gradient; we removed it, from scratch and without knowing the answer, by projecting onto the $L_z = 0$ sector, which reaches $0.2\%$ of the exact energy on the isotropic trap and $0.09\%$ on the interacting dot. The wall at $N=6$ is a failure of expressivity that projection cannot touch, because the obstruction lives in the same symmetry sector as the target. Underneath both sits the same trade the thesis set out to weigh: the fixed factor buys the $O(K N^2)$ cost the construction was designed for, but that advantage only materialises beyond $N \sim 100$, well outside the range we can train, while at the sizes we can train a learned $O(N^3)$ determinant is both cheaper in wall-clock time and strictly more accurate. On the evidence gathered here the fixed signature encoder does not yet pay for itself as a practical replacement for the Slater determinant, and the reason is structural rather than a matter of tuning: an antisymmetry that is fixed in advance cannot place the nodes that a general fermionic ground state demands.
+Projecting the ansatz onto the $L_z = 0$  removes the trap from the space the optimiser can explore, at a cost of $O(K N^2)$ against the $O(N^3)$ of a Slater
+determinant, which unfortunately does not scale for any system with $N>3$. The reason it does not is a second and independent problem. At $N=6$ the projected network stalls at $E \approx 16$ to $17$ for every projection order tried, including orders that leave the trap inside the allowed sector and orders that
+remove it. Since removing the trap does not change where the network
+lands, the plateau is not the trap but it is built from
+excited states below the trap, against which symmetry projection is powerless by construction. Supervised pretraining locates the obstruction in
+representability rather than in optimisation: the overlap with the
+exact ground state falls monotonically with the number of occupied
+shell-$2$ orbitals, from $0.91$ at $N=3$ through $0.80$ and $0.11$ to
+numerically zero at $N=6$ and beyond, and neither budget, width, nor
+the choice of degenerate member moves it. Those are precisely the
+orbitals whose nodal structure is not holomorphic, which is what the
+fixed $\eta$ cannot supply.
 
+All in all, the trap is a property of the optimisation landscape induced by a holomorphic
+signature encoder, and symmetry projection removes it. The wall is a
+property of the encoder itself, and no amount of symmetry, capacity or
+budget removes it. That both trace to the same fixed factor is
+confirmed by the learned-determinant baseline, which shares every
+component of the pipeline except the antisymmetrisation mechanism and
+reaches the ground state to better than one percent on every system in
+the study.
+
+\newpage
 \subsection*{Outlook}
 
-Several directions follow naturally from where this work stops. The central open question is whether the fixed signature encoder can be given enough freedom to place two-dimensional nodes without surrendering the $O(N^2)$ scaling that is its entire reason for existing. The two architectural variants we tried, a pairwise-distance feature stream and a trainable equivariant deformation of the encoder coordinates (Appendix~\ref{app:variants}), both leave the $N=6$ wall standing, which suggests that deforming a pairwise product is not enough and that the signature's product structure itself, rather than its coordinates, is what must change. Replacing the single Vandermonde by several nonlinear signature encoders, or by a small learned antisymmetric factor, could supply the missing nodal degrees of freedom; the latter reintroduces a determinant and with it the $O(N^3)$ cost, so the interesting version is the former, which stays $O(N^2)$.
 
-A second direction concerns the trap escape in systems with no symmetry to lean on. The $L_z$ projection works only where a conserved angular momentum separates the ground state from the trap, which excludes disordered or generic geometries. A global penalty that deflates the ansatz away from the analytically known trap subspace, which we implemented as an optional training-time penalty but did not carry to the rigour bar of the main results, is one route that needs neither a symmetry nor the exact ground state; whether such a penalty can be made robust rather than delicately tuned is left open.
-
-Finally, the cost crossover of Section~\ref{sec:complexity} sits at particle numbers we could not reach, both because the stochastic-reconfiguration update becomes unstable at $N=10$ and because the wall makes larger $N$ pointless until it is lifted. Stabilising the optimiser at larger $N$, and testing the ansatz on more strongly correlated systems where a single Slater determinant is genuinely insufficient and the fixed encoder might finally earn its place, are the experiments that would decide whether the construction is worth pursuing further.
+The wall we have measured may well be specific to the architecture we
+studied rather than to the whole family it belongs to. Our ansatz uses
+a single fixed antisymmetric factor, and it is exactly that choice
+that makes the node of $\eta$ a floor the symmetric network cannot
+lift. More recent constructions \cite{fu_fermi_2026} keep exact
+antisymmetry and the $O(N^2)$ cost while relaxing this restriction,
+either by combining several antisymmetric factors or by learning them
+instead of fixing them in advance. Whether that is enough to reach the
+ground states we could not represent is an open question, and a cheap
+one: the supervised assay of Section~\ref{sec:pretraining} would
+answer it in a single run per system.
 
 \newpage
 \part{Appendix}
@@ -876,6 +880,8 @@ The best \texttt{diag\_shift} is 0.001, with the soft-SVD optimiser.
 \paragraph{Regularisation of antisymmetric part}
 
 In our formulation of the antisymmetric function, Equation~\ref{eq:eta}, which is regularised by the parameter $a$, we made a quick sweep to assess its effect:
+
+TODO
 
 \section{Architectural variants against the $N=6$ wall}
 \label{app:variants}

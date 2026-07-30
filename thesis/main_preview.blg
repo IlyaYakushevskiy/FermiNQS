@@ -1,0 +1,49 @@
+This is BibTeX, Version 0.99d (TeX Live 2023/Debian)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: main_preview.aux
+The style file: ieeetr.bst
+Database file #1: zotero_references.bib
+Warning--empty journal in feynman_energy_nodate
+Warning--empty year in feynman_energy_nodate
+You've used 15 entries,
+            1876 wiz_defined-function locations,
+            560 strings with 6838 characters,
+and the built_in function-call counts, 3792 in all, are:
+= -- 315
+> -- 264
+< -- 0
++ -- 94
+- -- 79
+* -- 296
+:= -- 591
+add.period$ -- 20
+call.type$ -- 15
+change.case$ -- 15
+chr.to.int$ -- 0
+cite$ -- 17
+duplicate$ -- 163
+empty$ -- 306
+format.name$ -- 79
+if$ -- 885
+int.to.chr$ -- 0
+int.to.str$ -- 15
+missing$ -- 12
+newline$ -- 54
+num.names$ -- 15
+pop$ -- 62
+preamble$ -- 1
+purify$ -- 0
+quote$ -- 0
+skip$ -- 131
+stack$ -- 0
+substring$ -- 108
+swap$ -- 69
+text.length$ -- 0
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 0
+warning$ -- 2
+while$ -- 26
+width$ -- 17
+write$ -- 141
+(There were 2 warnings)
